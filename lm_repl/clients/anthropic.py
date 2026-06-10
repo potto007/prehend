@@ -31,7 +31,12 @@ class AnthropicClient(BaseLM):
         self.model_output_tokens: dict[str, int] = defaultdict(int)
         self.model_total_tokens: dict[str, int] = defaultdict(int)
 
-    def completion(self, prompt: str | list[dict[str, Any]], model: str | None = None) -> str:
+    def completion(
+        self,
+        prompt: str | list[dict[str, Any]],
+        model: str | None = None,
+        priority: str | int | None = None,  # accepted for interface parity; no scheduler here
+    ) -> str:
         messages, system = self._prepare_messages(prompt)
 
         model = model or self.model_name
@@ -47,7 +52,10 @@ class AnthropicClient(BaseLM):
         return response.content[0].text
 
     async def acompletion(
-        self, prompt: str | list[dict[str, Any]], model: str | None = None
+        self,
+        prompt: str | list[dict[str, Any]],
+        model: str | None = None,
+        priority: str | int | None = None,
     ) -> str:
         messages, system = self._prepare_messages(prompt)
 

@@ -71,7 +71,12 @@ class AzureOpenAIClient(BaseLM):
         self.model_output_tokens: dict[str, int] = defaultdict(int)
         self.model_total_tokens: dict[str, int] = defaultdict(int)
 
-    def completion(self, prompt: str | list[dict[str, Any]], model: str | None = None) -> str:
+    def completion(
+        self,
+        prompt: str | list[dict[str, Any]],
+        model: str | None = None,
+        priority: str | int | None = None,  # accepted for interface parity; no scheduler here
+    ) -> str:
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]
         elif isinstance(prompt, list) and all(isinstance(item, dict) for item in prompt):
@@ -91,7 +96,10 @@ class AzureOpenAIClient(BaseLM):
         return response.choices[0].message.content
 
     async def acompletion(
-        self, prompt: str | list[dict[str, Any]], model: str | None = None
+        self,
+        prompt: str | list[dict[str, Any]],
+        model: str | None = None,
+        priority: str | int | None = None,
     ) -> str:
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]

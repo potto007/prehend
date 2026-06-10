@@ -360,9 +360,9 @@ def _build_kernel_bootstrap(
             finally:
                 sock.close()
 
-        def llm_query(prompt, model=None):
+        def llm_query(prompt, model=None, priority=None):
             resp = _rlm_request(_RLM_LM_ADDRESS, {{
-                "prompt": prompt, "model": model, "depth": _RLM_DEPTH
+                "prompt": prompt, "model": model, "depth": _RLM_DEPTH, "priority": priority
             }})
             if not isinstance(resp, dict):
                 return "Error: LM query failed - malformed response"
@@ -371,10 +371,10 @@ def _build_kernel_bootstrap(
             cc = resp.get("chat_completion") or {{}}
             return cc.get("response", "")
 
-        def llm_query_batched(prompts, model=None):
+        def llm_query_batched(prompts, model=None, priority=None):
             prompts = list(prompts)
             resp = _rlm_request(_RLM_LM_ADDRESS, {{
-                "prompts": prompts, "model": model, "depth": _RLM_DEPTH
+                "prompts": prompts, "model": model, "depth": _RLM_DEPTH, "priority": priority
             }})
             if not isinstance(resp, dict):
                 return ["Error: LM query failed - malformed response"] * len(prompts)
@@ -859,11 +859,13 @@ class IPythonREPL(NonIsolatedEnv):
             return "No variables created yet. Use ```repl``` blocks to create variables."
         return f"Available variables: {available}"
 
-    def _llm_query(self, prompt: str, model: str | None = None) -> str:
+    def _llm_query(
+        self, prompt: str, model: str | None = None, priority: str | int | None = None
+    ) -> str:
         if not self.lm_handler_address:
             return "Error: No LM handler configured"
         try:
-            request = LMRequest(prompt=prompt, model=model, depth=self.depth)
+            request = LMRequest(prompt=prompt, model=model, depth=self.depth, priority=priority)
             response = send_lm_request(self.lm_handler_address, request)
             if not response.success:
                 return f"Error: {response.error}"
@@ -872,12 +874,17 @@ class IPythonREPL(NonIsolatedEnv):
         except Exception as e:
             return f"Error: LM query failed - {e}"
 
-    def _llm_query_batched(self, prompts: list[str], model: str | None = None) -> list[str]:
+    def _llm_query_batched(
+        self,
+        prompts: list[str],
+        model: str | None = None,
+        priority: str | int | None = None,
+    ) -> list[str]:
         if not self.lm_handler_address:
             return ["Error: No LM handler configured"] * len(prompts)
         try:
             responses = send_lm_request_batched(
-                self.lm_handler_address, prompts, model=model, depth=self.depth
+                self.lm_handler_address, prompts, model=model, depth=self.depth, priority=priority
             )
             results: list[str] = []
             for response in responses:

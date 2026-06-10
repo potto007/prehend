@@ -70,6 +70,7 @@ class RLM:
         compaction: bool = False,
         compaction_threshold_pct: float = 0.85,
         max_concurrent_subcalls: int = 4,
+        scheduler_max_concurrent: int | None = None,
         on_subcall_start: Callable[[int, str, str], None] | None = None,
         on_subcall_complete: Callable[[int, str, float, str | None], None] | None = None,
         on_iteration_start: Callable[[int, int], None] | None = None,
@@ -106,6 +107,10 @@ class RLM:
                 message token count reaches this fraction of the model context limit (default 0.85).
             max_concurrent_subcalls: Maximum number of parallel threads for rlm_query_batched subcalls.
                 Each child RLM runs in its own thread. Default 4.
+            scheduler_max_concurrent: If set, create a priority RequestScheduler shared by all
+                backend clients, capping in-flight requests and enabling context-contention
+                retries at exclusive (p1) priority. Match this to the inference server's slot
+                count (llama-server --parallel). None (default) disables scheduling.
             on_subcall_start: Callback fired when a child RLM starts. Args: (depth, model, prompt_preview).
             on_subcall_complete: Callback fired when a child RLM completes. Args: (depth, model, duration, error_or_none).
             on_iteration_start: Callback fired when an iteration starts. Args: (depth, iteration_num).
@@ -137,6 +142,7 @@ class RLM:
         self.compaction = compaction
         self.compaction_threshold_pct = compaction_threshold_pct
         self.max_concurrent_subcalls = max_concurrent_subcalls
+        self.scheduler_max_concurrent = scheduler_max_concurrent
 
         self.depth = depth
         self.max_depth = max_depth
@@ -208,7 +214,11 @@ class RLM:
         if self.other_backends and self.other_backend_kwargs:
             other_backend_client = get_client(self.other_backends[0], self.other_backend_kwargs[0])
 
-        lm_handler = LMHandler(client, other_backend_client=other_backend_client)
+        lm_handler = LMHandler(
+            client,
+            other_backend_client=other_backend_client,
+            scheduler_max_concurrent=self.scheduler_max_concurrent,
+        )
 
         # Register other clients to be available as sub-call options (by model name).
         # Reuse other_backend_client for the first entry so each (backend, kwargs)

@@ -10,6 +10,7 @@ from socketserver import StreamRequestHandler, ThreadingTCPServer
 from threading import Thread
 
 from lm_repl.clients.base_lm import BaseLM
+from lm_repl.clients.scheduler import RequestScheduler
 from lm_repl.core.comms_utils import LMRequest, LMResponse, socket_recv, socket_send
 from lm_repl.core.types import RLMChatCompletion, UsageSummary
 
@@ -63,7 +64,7 @@ class LMRequestHandler(StreamRequestHandler):
         client = handler.get_client(request.model, request.depth)
 
         start_time = time.perf_counter()
-        content = client.completion(request.prompt)
+        content = client.completion(request.prompt, priority=request.priority)
         end_time = time.perf_counter()
 
         model_usage = client.get_last_usage()
@@ -85,11 +86,17 @@ class LMRequestHandler(StreamRequestHandler):
 
         start_time = time.perf_counter()
 
-        sem = asyncio.Semaphore(handler.batch_max_concurrent)
+        if getattr(client, "scheduler", None) is not None:
+            # The client's RequestScheduler already bounds concurrency (and adds priority
+            # ordering), so a semaphore on top would only fight its queue.
+            async def run_one(prompt: str):
+                return await client.acompletion(prompt, priority=request.priority)
+        else:
+            sem = asyncio.Semaphore(handler.batch_max_concurrent)
 
-        async def run_one(prompt: str):
-            async with sem:
-                return await client.acompletion(prompt)
+            async def run_one(prompt: str):
+                async with sem:
+                    return await client.acompletion(prompt, priority=request.priority)
 
         async def run_all():
             tasks = [run_one(prompt) for prompt in request.prompts]
@@ -139,6 +146,7 @@ class LMHandler:
         port: int = 0,  # auto-assign available port
         other_backend_client: BaseLM | None = None,
         batch_max_concurrent: int = 16,
+        scheduler_max_concurrent: int | None = None,
     ):
         self.default_client = client
         self.other_backend_client = other_backend_client
@@ -148,6 +156,17 @@ class LMHandler:
         self._thread: Thread | None = None
         self._port = port
         self.batch_max_concurrent = batch_max_concurrent
+
+        # One scheduler shared by every client that targets the same server, so the
+        # priority queue (and p1 exclusivity) spans all traffic. Match
+        # scheduler_max_concurrent to the server's slot count (llama-server --parallel).
+        # None disables scheduling entirely (previous behavior).
+        self.scheduler: RequestScheduler | None = None
+        if scheduler_max_concurrent is not None:
+            self.scheduler = RequestScheduler(max_concurrent=scheduler_max_concurrent)
+            for c in (client, other_backend_client):
+                if c is not None and hasattr(c, "scheduler"):
+                    c.scheduler = self.scheduler
 
         self.register_client(client.model_name, client)
 

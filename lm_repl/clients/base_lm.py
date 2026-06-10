@@ -19,11 +19,17 @@ class BaseLM(ABC):
         self.kwargs = kwargs
 
     @abstractmethod
-    def completion(self, prompt: str | dict[str, Any]) -> str:
+    def completion(
+        self, prompt: str | dict[str, Any], priority: str | int | None = None
+    ) -> str:
+        """Run a completion. priority is a scheduling hint ("high"/"low"/"normal" or 1-5);
+        backends without a request scheduler may ignore it."""
         raise NotImplementedError
 
     @abstractmethod
-    async def acompletion(self, prompt: str | dict[str, Any]) -> str:
+    async def acompletion(
+        self, prompt: str | dict[str, Any], priority: str | int | None = None
+    ) -> str:
         raise NotImplementedError
 
     @abstractmethod

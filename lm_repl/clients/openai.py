@@ -1,3 +1,4 @@
+import logging
 import os
 from collections import defaultdict
 from typing import Any
@@ -6,7 +7,10 @@ import openai
 from dotenv import load_dotenv
 
 from lm_repl.clients.base_lm import BaseLM
+from lm_repl.clients.scheduler import Priority, RequestScheduler, resolve_priority
 from lm_repl.core.types import ModelUsageSummary, UsageSummary
+
+log = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -16,6 +20,25 @@ DEFAULT_OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 DEFAULT_VERCEL_API_KEY = os.getenv("AI_GATEWAY_API_KEY")
 DEFAULT_PRIME_API_KEY = os.getenv("PRIME_API_KEY")
 DEFAULT_PRIME_INTELLECT_BASE_URL = "https://api.pinference.ai/api/v1/"
+
+
+def _is_context_contention(e: openai.BadRequestError) -> bool:
+    """True when llama-server rejected the request for context size.
+
+    With ``--kv-unified`` the available context is a shared pool, so this 400 usually means
+    another slot is occupying the pool right now - not that the request can never fit. The
+    caller retries once at p1 (exclusive access); if that retry also fails, the request is
+    genuinely too large and the error propagates. Example body:
+    ``{"error":{"code":400,"message":"request (40069 tokens) exceeds the available context
+    size (22016 tokens), try increasing it","type":"exceed_context_size_error"}}``
+    """
+    body = getattr(e, "body", None)
+    if isinstance(body, dict):
+        err = body.get("error", body)
+        if isinstance(err, dict) and err.get("type") == "exceed_context_size_error":
+            return True
+    text = str(e)
+    return "exceed_context_size_error" in text or "exceeds the available context size" in text
 
 
 def _merge_consecutive_roles(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -59,6 +82,7 @@ class OpenAIClient(BaseLM):
         model_name: str | None = None,
         base_url: str | None = None,
         default_extra_body: dict[str, Any] | None = None,
+        scheduler: RequestScheduler | None = None,
         **kwargs,
     ):
         super().__init__(model_name=model_name, **kwargs)
@@ -67,6 +91,7 @@ class OpenAIClient(BaseLM):
         # while the root orchestrator keeps thinking). Not an OpenAI client ctor arg, so it is a
         # named param here and never leaks into client_kwargs below.
         self.default_extra_body = default_extra_body or {}
+        self.scheduler = scheduler
 
         if api_key is None:
             if base_url == "https://api.openai.com/v1" or base_url is None:
@@ -103,6 +128,7 @@ class OpenAIClient(BaseLM):
         prompt: str | list[dict[str, Any]],
         model: str | None = None,
         response_format: dict[str, Any] | None = None,
+        priority: str | int | None = None,
     ) -> str:
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]
@@ -119,20 +145,52 @@ class OpenAIClient(BaseLM):
         if self.client.base_url == DEFAULT_PRIME_INTELLECT_BASE_URL:
             extra_body["usage"] = {"include": True}
 
-        # Optional structured output (OpenAI / LM Studio json_schema). Pass-through so any
-        # OpenAI-compatible backend that supports response_format can be used for typed I/O.
         create_kwargs: dict[str, Any] = {}
         if response_format is not None:
             create_kwargs["response_format"] = response_format
 
-        response = self.client.chat.completions.create(
-            model=model, messages=messages, extra_body=extra_body, **create_kwargs
-        )
-        self._track_cost(response, model)
-        return response.choices[0].message.content
+        p = resolve_priority(priority)
+        return self._do_completion(model, messages, extra_body, create_kwargs, p)
+
+    def _do_completion(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        extra_body: dict[str, Any],
+        create_kwargs: dict[str, Any],
+        priority: int,
+    ) -> str:
+        while True:
+            # The finally must release at the priority we acquired with, not the one the
+            # retry branch escalates to for the next iteration.
+            acquired = priority
+            if self.scheduler:
+                self.scheduler.acquire(acquired)
+            try:
+                response = self.client.chat.completions.create(
+                    model=model, messages=messages, extra_body=extra_body, **create_kwargs
+                )
+                self._track_cost(response, model)
+                return response.choices[0].message.content
+            except openai.BadRequestError as e:
+                if (
+                    self.scheduler
+                    and priority != Priority.CONTENTION_RETRY
+                    and _is_context_contention(e)
+                ):
+                    log.info("context contention (%s), retrying at p1", str(e)[:80])
+                    priority = Priority.CONTENTION_RETRY
+                    continue
+                raise
+            finally:
+                if self.scheduler:
+                    self.scheduler.release(acquired)
 
     async def acompletion(
-        self, prompt: str | list[dict[str, Any]], model: str | None = None
+        self,
+        prompt: str | list[dict[str, Any]],
+        model: str | None = None,
+        priority: str | int | None = None,
     ) -> str:
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]
@@ -149,11 +207,39 @@ class OpenAIClient(BaseLM):
         if self.client.base_url == DEFAULT_PRIME_INTELLECT_BASE_URL:
             extra_body["usage"] = {"include": True}
 
-        response = await self.async_client.chat.completions.create(
-            model=model, messages=messages, extra_body=extra_body
-        )
-        self._track_cost(response, model)
-        return response.choices[0].message.content
+        p = resolve_priority(priority)
+        return await self._ado_completion(model, messages, extra_body, p)
+
+    async def _ado_completion(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        extra_body: dict[str, Any],
+        priority: int,
+    ) -> str:
+        while True:
+            acquired = priority
+            if self.scheduler:
+                await self.scheduler.aacquire(acquired)
+            try:
+                response = await self.async_client.chat.completions.create(
+                    model=model, messages=messages, extra_body=extra_body
+                )
+                self._track_cost(response, model)
+                return response.choices[0].message.content
+            except openai.BadRequestError as e:
+                if (
+                    self.scheduler
+                    and priority != Priority.CONTENTION_RETRY
+                    and _is_context_contention(e)
+                ):
+                    log.info("context contention (%s), retrying at p1", str(e)[:80])
+                    priority = Priority.CONTENTION_RETRY
+                    continue
+                raise
+            finally:
+                if self.scheduler:
+                    await self.scheduler.arelease(acquired)
 
     def _track_cost(self, response: openai.ChatCompletion, model: str):
         self.model_call_counts[model] += 1

@@ -28,7 +28,9 @@ class MockLM(BaseLM):
         self._response_fn = response_fn
         self._call_count = 0
 
-    def completion(self, prompt: str | dict[str, Any]) -> str:
+    def completion(
+        self, prompt: str | dict[str, Any], priority: str | int | None = None
+    ) -> str:
         self._call_count += 1
         if self._responses is not None:
             if not self._responses:
@@ -39,7 +41,9 @@ class MockLM(BaseLM):
         prompt_str = prompt if isinstance(prompt, str) else str(prompt)[:80]
         return f"Mock response to: {prompt_str}"
 
-    async def acompletion(self, prompt: str | dict[str, Any]) -> str:
+    async def acompletion(
+        self, prompt: str | dict[str, Any], priority: str | int | None = None
+    ) -> str:
         return self.completion(prompt)
 
     def get_usage_summary(self) -> UsageSummary:
