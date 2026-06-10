@@ -53,11 +53,13 @@ class SRLM(RLM):
         *,
         direct_threshold: int = 0,
         n_candidates: int = 1,
+        candidate_temperature: float | None = None,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
         self.direct_threshold = direct_threshold
         self.n_candidates = n_candidates
+        self.candidate_temperature = candidate_temperature
 
     def _direct_completion(self, prompt: str | dict[str, Any]) -> RLMChatCompletion:
         """Bypass REPL - direct LLM chat completion for short contexts."""
@@ -114,10 +116,23 @@ class SRLM(RLM):
         self, prompt: str | dict[str, Any], root_prompt: str | None = None
     ) -> RLMChatCompletion:
         """Generate K candidates and select the best by uncertainty signals."""
-        candidates: list[RLMChatCompletion] = []
-        for _ in range(self.n_candidates):
-            result = super().completion(prompt, root_prompt)
-            candidates.append(result)
+        saved_extra = None
+        if self.candidate_temperature is not None and self.backend_kwargs:
+            saved_extra = self.backend_kwargs.get("default_extra_body")
+            merged = dict(saved_extra) if saved_extra else {}
+            merged["temperature"] = self.candidate_temperature
+            self.backend_kwargs["default_extra_body"] = merged
+
+        try:
+            candidates: list[RLMChatCompletion] = []
+            for _ in range(self.n_candidates):
+                result = super().completion(prompt, root_prompt)
+                candidates.append(result)
+        finally:
+            if saved_extra is not None and self.backend_kwargs:
+                self.backend_kwargs["default_extra_body"] = saved_extra
+            elif self.candidate_temperature is not None and self.backend_kwargs and "default_extra_body" in self.backend_kwargs:
+                self.backend_kwargs["default_extra_body"].pop("temperature", None)
 
         best = _select_best(candidates)
         if best.metadata is None:

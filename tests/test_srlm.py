@@ -1,6 +1,7 @@
 """Tests for the SRLM subclass - context-length routing, direct mode, and selection."""
 from unittest.mock import MagicMock, patch
 
+from lm_repl.core.rlm import RLM
 from lm_repl.core.srlm import SRLM, _choose_mode, _build_direct_messages, _select_best
 from lm_repl.core.types import RLMChatCompletion, UsageSummary
 
@@ -98,3 +99,76 @@ class TestSelectBest:
         c2 = _make_completion("yes", 1.0)
         result = _select_best([c1, c2])
         assert result.execution_time == 1.0
+
+
+class TestCandidateTemperature:
+    def test_default_is_none(self):
+        srlm = SRLM(
+            backend="openai",
+            backend_kwargs={"model_name": "test", "base_url": "http://localhost:9999/v1"},
+        )
+        assert srlm.candidate_temperature is None
+
+    def test_accepts_temperature(self):
+        srlm = SRLM(
+            backend="openai",
+            backend_kwargs={"model_name": "test", "base_url": "http://localhost:9999/v1"},
+            candidate_temperature=0.7,
+        )
+        assert srlm.candidate_temperature == 0.7
+
+    def test_temperature_injected_during_multi_trajectory(self):
+        """When candidate_temperature is set, backend_kwargs should get temperature
+        injected into default_extra_body during multi-trajectory runs, then restored."""
+        srlm = SRLM(
+            backend="openai",
+            backend_kwargs={"model_name": "test", "base_url": "http://localhost:9999/v1"},
+            n_candidates=2,
+            candidate_temperature=0.8,
+        )
+        original_extra = dict(srlm.backend_kwargs.get("default_extra_body", {}))
+
+        captured_temps = []
+        original_completion = RLM.completion
+
+        def mock_completion(self_inner, prompt, root_prompt=None):
+            extra = self_inner.backend_kwargs.get("default_extra_body", {})
+            captured_temps.append(extra.get("temperature"))
+            from lm_repl.core.types import RLMChatCompletion, UsageSummary
+            return RLMChatCompletion(
+                root_model="test", prompt=prompt, response="42",
+                usage_summary=UsageSummary(model_usage_summaries={}),
+                execution_time=1.0,
+            )
+
+        import unittest.mock
+        with unittest.mock.patch.object(RLM, 'completion', mock_completion):
+            srlm.completion("test prompt")
+
+        assert all(t == 0.8 for t in captured_temps), f"Expected 0.8, got {captured_temps}"
+        assert srlm.backend_kwargs.get("default_extra_body", {}) == original_extra
+
+    def test_no_temperature_injection_when_none(self):
+        """When candidate_temperature is None, no temperature is injected."""
+        srlm = SRLM(
+            backend="openai",
+            backend_kwargs={"model_name": "test", "base_url": "http://localhost:9999/v1"},
+            n_candidates=2,
+        )
+
+        captured_temps = []
+        def mock_completion(self_inner, prompt, root_prompt=None):
+            extra = self_inner.backend_kwargs.get("default_extra_body", {})
+            captured_temps.append(extra.get("temperature"))
+            from lm_repl.core.types import RLMChatCompletion, UsageSummary
+            return RLMChatCompletion(
+                root_model="test", prompt=prompt, response="42",
+                usage_summary=UsageSummary(model_usage_summaries={}),
+                execution_time=1.0,
+            )
+
+        import unittest.mock
+        with unittest.mock.patch.object(RLM, 'completion', mock_completion):
+            srlm.completion("test prompt")
+
+        assert all(t is None for t in captured_temps)
