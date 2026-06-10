@@ -449,6 +449,110 @@ def test_async_priority_beats_sync_fifo():
 
 
 # =============================================================================
+# Cancellation safety (async)
+# =============================================================================
+
+
+def test_cancelled_async_waiter_does_not_leak_slot():
+    async def main():
+        s = RequestScheduler(max_concurrent=1)
+        await s.aacquire(Priority.NORMAL)
+
+        task = asyncio.create_task(s.aacquire(Priority.NORMAL))
+        await asyncio.sleep(0.05)
+        assert s.waiting == 1
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        await s.arelease(Priority.NORMAL)
+        assert s.active == 0
+        assert s.waiting == 0
+
+        # The slot must be immediately reusable.
+        await asyncio.wait_for(s.aacquire(Priority.NORMAL), 1)
+        await s.arelease(Priority.NORMAL)
+
+    asyncio.run(main())
+
+
+def test_cancelled_p1_waiter_unblocks_lower_admissions():
+    async def main():
+        s = RequestScheduler(max_concurrent=2)
+        await s.aacquire(Priority.NORMAL)  # keeps _active > 0 so p1 must queue
+
+        p1_task = asyncio.create_task(s.aacquire(Priority.CONTENTION_RETRY))
+        await asyncio.sleep(0.05)
+        assert s.waiting == 1
+
+        async def normal_waiter():
+            await s.aacquire(Priority.NORMAL)  # blocked by the waiting p1
+            await s.arelease(Priority.NORMAL)
+            return "done"
+
+        normal_task = asyncio.create_task(normal_waiter())
+        await asyncio.sleep(0.05)
+        assert s.waiting == 2
+
+        p1_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await p1_task
+
+        # With the p1 gone, the queued NORMAL must dispatch without any release.
+        assert await asyncio.wait_for(normal_task, 2) == "done"
+        await s.arelease(Priority.NORMAL)
+        assert s.active == 0
+
+    asyncio.run(main())
+
+
+def test_waiter_cancelled_after_dispatch_returns_slot():
+    async def main():
+        s = RequestScheduler(max_concurrent=1)
+        await s.aacquire(Priority.NORMAL)
+
+        task = asyncio.create_task(s.aacquire(Priority.NORMAL))
+        await asyncio.sleep(0.05)
+        assert s.waiting == 1
+
+        # arelease dispatches the waiter (slot admitted) but the task has not
+        # resumed yet; cancelling now hits the dispatched-but-cancelled window.
+        await s.arelease(Priority.NORMAL)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert s.active == 0
+        await asyncio.wait_for(s.aacquire(Priority.NORMAL), 1)
+        await s.arelease(Priority.NORMAL)
+
+    asyncio.run(main())
+
+
+def test_dead_loop_waiter_skipped_on_dispatch():
+    s = RequestScheduler(max_concurrent=1)
+    s.acquire(Priority.NORMAL)
+
+    # A waiter whose event loop is torn down without the task being cancelled:
+    # dispatch must skip it instead of raising on the closed loop.
+    loop = asyncio.new_event_loop()
+    task = loop.create_task(s.aacquire(Priority.NORMAL))
+    task._log_destroy_pending = False  # abandoning it is the point of this test
+    loop.run_until_complete(asyncio.sleep(0.01))
+    assert s.waiting == 1
+    loop.close()
+
+    s.release(Priority.NORMAL)  # must not raise "Event loop is closed"
+    assert s.active == 0
+    assert s.waiting == 0
+
+    s.acquire(Priority.NORMAL)  # slot must be available again
+    s.release(Priority.NORMAL)
+    del task
+
+
+# =============================================================================
 # Context-contention detection
 # =============================================================================
 

@@ -70,7 +70,7 @@ def resolve_priority(value: str | int | None) -> int:
 
 
 class _Waiter:
-    __slots__ = ("priority", "band", "vkey", "seq", "event")
+    __slots__ = ("priority", "band", "vkey", "seq", "event", "cancelled", "dispatched")
 
     def __init__(self, priority: int, band: int, vkey: float, seq: int):
         self.priority = priority
@@ -78,6 +78,8 @@ class _Waiter:
         self.vkey = vkey
         self.seq = seq
         self.event = threading.Event()
+        self.cancelled = False
+        self.dispatched = False
 
     def __lt__(self, other: "_Waiter") -> bool:
         if self.band != other.band:
@@ -88,7 +90,7 @@ class _Waiter:
 
 
 class _AsyncWaiter:
-    __slots__ = ("priority", "band", "vkey", "seq", "event", "loop")
+    __slots__ = ("priority", "band", "vkey", "seq", "event", "loop", "cancelled", "dispatched")
 
     def __init__(
         self, priority: int, band: int, vkey: float, seq: int, loop: asyncio.AbstractEventLoop
@@ -99,6 +101,8 @@ class _AsyncWaiter:
         self.seq = seq
         self.loop = loop
         self.event = asyncio.Event()
+        self.cancelled = False
+        self.dispatched = False
 
     def __lt__(self, other: "_AsyncWaiter") -> bool:
         if self.band != other.band:
@@ -167,6 +171,15 @@ class RequestScheduler:
             else:
                 candidate = top_sync or top_async
 
+            if candidate.cancelled:
+                # The waiting task was cancelled in aacquire; its counters were
+                # already adjusted there. Just drop it and keep dispatching.
+                if candidate is top_sync:
+                    heapq.heappop(self._sync_waiters)
+                else:
+                    heapq.heappop(self._async_waiters)
+                continue
+
             if not self._can_dispatch(candidate.priority):
                 break
 
@@ -180,8 +193,17 @@ class RequestScheduler:
             self._admit(candidate.priority)
 
             if isinstance(candidate, _AsyncWaiter):
-                candidate.loop.call_soon_threadsafe(candidate.event.set)
+                candidate.dispatched = True
+                try:
+                    candidate.loop.call_soon_threadsafe(candidate.event.set)
+                except RuntimeError:
+                    # The waiter's event loop is closed, so its task can never
+                    # resume (or release): take the slot back and move on.
+                    self._active -= 1
+                    if candidate.priority == Priority.CONTENTION_RETRY:
+                        self._active_p1 -= 1
             else:
+                candidate.dispatched = True
                 candidate.event.set()
 
     # -- sync interface --
@@ -222,7 +244,25 @@ class RequestScheduler:
                 self._waiting_p1 += 1
             heapq.heappush(self._async_waiters, waiter)
 
-        await waiter.event.wait()
+        try:
+            await waiter.event.wait()
+        except asyncio.CancelledError:
+            with self._lock:
+                if waiter.dispatched:
+                    # Dispatch already admitted us; give the slot back since
+                    # this task will never run a request or release.
+                    self._active -= 1
+                    if priority == Priority.CONTENTION_RETRY:
+                        self._active_p1 -= 1
+                else:
+                    # Still queued: mark for lazy removal by _dispatch_next.
+                    waiter.cancelled = True
+                    if priority == Priority.CONTENTION_RETRY:
+                        self._waiting_p1 -= 1
+                # Either branch can unblock other waiters (a freed slot, or a
+                # vanished waiting-p1 that was gating admissions).
+                self._dispatch_next()
+            raise
 
     async def arelease(self, priority: int = Priority.NORMAL) -> None:
         with self._lock:
