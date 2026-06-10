@@ -1,133 +1,146 @@
+# LM-REPL
 
----
+**Recursive Language Models with self-reflective program search.**
 
-<h1 align="center" style="font-size:2.8em">
-<span>Recursive Language Models (<span style="color:orange">RLM</span>s)</span>
-</h1>
+`lm-repl` (package import: `lm_repl`) is a fork of [`rlms`](https://github.com/alexzhang13/rlm), the MIT OASYS lab's inference engine for [Recursive Language Models](https://arxiv.org/abs/2512.24601) (RLMs). An RLM replaces the canonical `llm.completion(prompt)` call with `rlm.completion(prompt)`: the context is offloaded into a variable inside a REPL environment, and the model writes programs that slice, search, and recursively query that context instead of attending over it directly.
 
-<p align="center" style="font-size:1.3em">
-  <a href="https://arxiv.org/abs/2512.24601">Full Paper</a> •
-  <a href="https://alexzhang13.github.io/blog/2025/rlm/">Blogpost</a> •
-  <a href="https://alexzhang13.github.io/rlm/">Documentation</a> •
-  <a href="https://github.com/alexzhang13/rlm-minimal">RLM Minimal</a>
-</p>
+This fork keeps the upstream engine and layers two things on top:
 
-<p align="center">
-  <a href="https://github.com/alexzhang13/rlm/actions/workflows/style.yml">
-    <img src="https://github.com/alexzhang13/rlm/actions/workflows/style.yml/badge.svg" alt="Style" />
-  </a>
-  <a href="https://github.com/alexzhang13/rlm/actions/workflows/test.yml">
-    <img src="https://github.com/alexzhang13/rlm/actions/workflows/test.yml/badge.svg" alt="Test" />
-  </a>
-</p>
+1. **Map-reduce style orchestration.** Patches that harden the orchestrator-plus-workers pattern: long contexts are chunked and fanned out to parallel batched sub-calls (the map), and the orchestrator aggregates the partial answers (the reduce). The fork adds distinct system prompts for the orchestrator and its workers, per-child iteration budgets, and client fixes needed to drive local OpenAI-compatible servers reliably.
+2. **Self-reflective program search (SRLM).** An `SRLM` subclass implementing uncertainty-guided trajectory selection per Apple's [SRLM paper](https://arxiv.org/abs/2603.15653): generate K candidate context-interaction trajectories, then select using the model's own uncertainty signals (self-consistency, verbalized confidence, reasoning trace length) instead of trusting a single rollout. The same paper motivates context-length routing, since recursive decomposition often hurts when the context already fits the model's window.
 
-<p align="center">
-  <a href="https://arxiv.org/abs/2512.24601">
-    <img src="media/paper_preview.png" alt="Paper Preview" width="300"/>
-  </a>
-</p>
+## Lineage
 
-## Overview
-Recursive Language Models (RLMs) are a task-agnostic inference paradigm for language models (LMs) to handle near-infinite length contexts by enabling the LM to *programmatically* examine, decompose, and recursively call itself over its input. RLMs replace the canonical `llm.completion(prompt, model)` call with a `rlm.completion(prompt, model)` call. RLMs offload the context as a variable in a REPL environment that the LM can interact with and launch sub-LM calls inside of.
+| Stage | What it contributed |
+|-------|---------------------|
+| [`rlms` 0.1.1](https://github.com/alexzhang13/rlm) (Zhang, Kraska, Khattab) | The RLM paradigm and engine: REPL environments, recursive sub-calls, parallel `rlm_query_batched`, clients, logging, visualizer |
+| Local `rlms` patches | Map-reduce orchestration support: `child_system_prompt` (workers get a different system prompt than the orchestrator), `child_max_iterations`, `max_output_chars` stdout truncation, `default_extra_body` on the OpenAI client, consecutive same-role message merging (required by llama-server), `response_format` pass-through |
+| `lm-repl` fork | The `SRLM` subclass: context-length routing, multi-trajectory generation with parallel candidates, and joint uncertainty-guided selection |
 
-This repository provides an extensible inference engine for using RLMs around standard API-based and local LLMs. The initial experiments and idea were proposed in a [blogpost](https://alexzhang13.github.io/blog/2025/rlm/) in 2025, with expanded results in an [arXiv preprint](https://arxiv.org/abs/2512.24601).
+## SRLM: uncertainty-guided trajectory selection
 
-> [!NOTE]
-> This repository contains inference code for RLMs with support for various sandbox environments. Open-source contributions are welcome. This repository is maintained by the authors of the paper from the MIT OASYS lab.
+The quality of an RLM answer depends heavily on which program trajectory the model happens to sample. `SRLM` subclasses `RLM` and replaces single-rollout inference with search over K candidates:
 
-## Quick Setup
-> [!NOTE]
-> `rlms` requires **Python 3.11 or later**.
+```python
+from lm_repl import SRLM
 
-You can try out RLMs quickly by installing from PyPi:
-```bash
-pip install rlms
+srlm = SRLM(
+    backend="openai",
+    backend_kwargs={"model_name": "my-model", "base_url": "http://localhost:8080/v1"},
+    direct_threshold=30_000,      # contexts under 30K chars skip the REPL entirely
+    n_candidates=4,               # K candidate trajectories
+    candidate_parallel=2,         # candidates in flight at once (match server slots)
+    candidate_temperature=0.7,    # sampling diversity across candidates
+    confidence_elicitation=True,  # elicit per-step {"confidence": N} and use it in selection
+)
+
+result = srlm.completion(long_context, "What changed between Q3 and Q4?")
 ```
 
-The default RLM client uses a REPL environment that runs on the host process through Python `exec` calls. It uses the same virtual environment as the host process (i.e. it will have access to the same dependencies), but with some limitations in its available global modules. As an example, we can call RLM completions using GPT-5-nano:
+How a winner is chosen, per the SRLM paper:
+
+1. **Self-consistency.** Final answers are clustered semantically (normalization plus word-boundary containment, so "42" and "The answer is 42" vote together) and the plurality cluster survives. Tied clusters pool their candidates rather than favoring whichever answer appeared first.
+2. **Joint uncertainty score.** Within the surviving set, each trajectory gets `VC(p) * Len(p)`, where `VC` is the sum of log per-step verbalized confidences (steps that skip reporting are imputed with the trajectory mean, so under-reporting cannot inflate the score) and `Len` is the trace length in output tokens. The candidate closest to zero wins. Without `confidence_elicitation`, selection falls back to the shortest trace.
+
+Implementation notes:
+
+- Each candidate runs on a fresh `RLM` instance with its own logger and config copy, so parallel candidates share no mutable state. A crashing candidate is dropped; only if every candidate fails does the call raise.
+- `confidence_elicitation=True` appends the reporting instruction to the system prompt automatically; spawned candidates inherit it.
+- `direct_threshold` routes short contexts to a plain LLM call. The SRLM paper finds recursive decomposition frequently underperforms the base model within its native window, so set this to roughly the served context size.
+
+| Parameter | Default | Meaning |
+|-----------|---------|---------|
+| `direct_threshold` | `0` (off) | Context length in chars below which the REPL is bypassed |
+| `n_candidates` | `1` | Candidate trajectories per completion |
+| `candidate_parallel` | `1` | Candidates run concurrently (thread pool) |
+| `candidate_temperature` | `None` | Temperature injected into candidate backends |
+| `confidence_elicitation` | `False` | Elicit per-step confidence and use VC*Len selection |
+
+All `RLM` constructor arguments pass through unchanged, including `child_system_prompt`.
+
+## Install
+
+Requires **Python 3.11+**. This fork is not on PyPI (`pip install rlms` installs upstream); install editable from a checkout:
+
+```bash
+uv pip install -e /path/to/lm-repl --no-deps
+```
+
+Verify you got the fork and not a stale upstream build:
+
+```bash
+python -c "import inspect; from lm_repl import RLM, SRLM; print('child_system_prompt' in inspect.signature(RLM.__init__).parameters)"
+```
+
+## Quick start
+
 ```python
-from rlm import RLM
+from lm_repl import RLM
 
 rlm = RLM(
     backend="openai",
     backend_kwargs={"model_name": "gpt-5-nano"},
-    verbose=True,  # For printing to console with rich, disabled by default.
+    verbose=True,
 )
 
 print(rlm.completion("Print me the first 100 powers of two, each on a newline.").response)
 ```
 
-<details>
-<summary><b>Manual Setup</b></summary>
-
-Set up the dependencies with `uv` (or your virtual environment of choice):
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv init && uv venv --python 3.12  # change version as needed
-uv pip install -e .
-```
-
-This project includes a `Makefile` to simplify common tasks.
-
-- `make install`: Install base dependencies.
-- `make check`: Run linter, formatter, and tests.
-
-To run a quick test, the following will run an RLM query with the OpenAI client using your environment variable `OPENAI_API_KEY` (feel free to change this). This will generate console output as well as a log which you can use with the visualizer to explore the trajectories.
-```bash
-make quickstart
-```
-
-</details>
-
-## REPL Environments
-We support two types of REPL environments -- isolated, and non-isolated. Non-isolated environments (default) run code execution on the same machine as the RLM (e.g. through `exec`), which is pretty reasonable for some local low-risk tasks, like simple benchmarking, but can be problematic if the prompts or tool calls can interact with malicious users. Fully isolated environments use cloud-based sandboxes (e.g. Prime Sandboxes, [Modal Sandboxes](https://modal.com/docs/guide/sandboxes)) to run code generated by the RLM, ensuring complete isolation from the host process. Environments can be added, but we natively support the following: `local` (default), `ipython`, `docker`, `modal`, `prime`, `daytona`, `e2b`.
+For the orchestrator/worker split used in map-reduce style runs:
 
 ```python
 rlm = RLM(
-    environment="...", # "local", "ipython", "docker", "modal", "prime", "daytona", "e2b"
-    environment_kwargs={...},
+    backend="openai",
+    backend_kwargs={...},
+    custom_system_prompt=ORCHESTRATOR_PROMPT,   # the root model plans and reduces
+    child_system_prompt=WORKER_PROMPT,          # sub-call workers map over chunks
+    child_max_iterations=5,
+    max_concurrent_subcalls=4,
 )
 ```
 
-### Local Environments
-The default `local` environment `LocalREPL` runs in the same process as the RLM itself, with specified global and local namespaces for minimal security. Using this REPL is generally safe, but should not be used for production settings. It also shares the same virtual environment (e.g. Conda or uv) as the host process.
+## REPL environments
 
-#### IPython (*requires `pip install 'rlms[ipython]'`*)
-`IPythonREPL` runs cells inside a real IPython session — either in-process (default) or in a separate `ipykernel` subprocess. Subprocess mode adds hard `cell_timeout` enforcement and full namespace isolation from the RLM host. See the [IPythonREPL docs](https://alexzhang13.github.io/rlm/environments/ipython) for details.
+Non-isolated environments run code on the host (fine for benchmarking, not for untrusted prompts); isolated environments run in cloud sandboxes. Natively supported: `local` (default), `ipython`, `docker`, `modal`, `prime`, `daytona`, `e2b`.
 
-#### Docker <img src="https://github.com/docker.png" alt="Docker" height="20" style="vertical-align: middle;"/> (*requires [Docker installed](https://docs.docker.com/desktop/setup/install/)*)
-We also support a Docker-based environment called `DockerREPL` that launches the REPL environment as a Docker image. By default, we use the `python:3.11-slim` image, but the user can specify custom images as well.
-
-### Isolated Environments
-We support several different REPL environments that run on separate, cloud-based machines. Whenever a recursive sub-call is made in these instances, it is requested from the host process.
-
-#### Modal Sandboxes <img src="https://github.com/modal-labs.png" alt="Modal" height="20" style="vertical-align: middle;"/>
-To use [Modal Sandboxes](https://modal.com/docs/guide/sandboxes) as the REPL environment, you need to install and authenticate your Modal account.
-```bash
-uv add modal  # add modal library
-modal setup   # authenticate account
+```python
+rlm = RLM(
+    environment="local",
+    environment_kwargs={"max_output_chars": 500},
+)
 ```
 
-#### Prime Intellect Sandboxes <img src="https://github.com/PrimeIntellect-ai.png" alt="Prime Intellect" height="20" style="vertical-align: middle;"/>
-> [!NOTE]
-> **Prime Intellect Sandboxes** are currently a beta feature. See the [documentation](https://docs.primeintellect.ai/sandboxes/overview) for more information. We noticed slow runtimes when using these sandboxes, which is currently an open issue.
+- **`local`**: in-process `exec` with namespaced globals. `max_output_chars` truncates REPL stdout fed back to the model.
+- **`ipython`** (`pip install 'lm-repl[ipython]'`): real IPython session, in-process or in an `ipykernel` subprocess with hard cell timeouts.
+- **`docker`**: REPL inside a container (`python:3.11-slim` by default).
+- **`modal` / `prime` / `daytona` / `e2b`**: fully isolated cloud sandboxes; sub-calls are proxied back to the host.
 
+## Model providers
 
-To use [Prime Sandboxes](https://docs.primeintellect.ai/sandboxes/sdk), install the SDK and set your API key:
-```bash
-uv pip install -e ".[prime]"
-export PRIME_API_KEY=...
+OpenAI, Anthropic, OpenRouter, and Portkey clients are included. Local models work through any OpenAI-compatible server (vLLM, llama-server); the fork's `default_extra_body` and same-role message merging exist specifically to make local serving smooth. See `lm_repl/clients/` to add providers.
+
+## Trajectory metadata and logging
+
+`RLMChatCompletion.metadata` holds the full trajectory (run config plus every iteration and sub-call) when a logger is attached. SRLM relies on this for confidence scoring, and spawns per-candidate loggers automatically.
+
+```python
+from lm_repl import RLM
+from lm_repl.logger import RLMLogger
+
+logger = RLMLogger(log_dir="./logs")   # omit log_dir for in-memory only
+rlm = RLM(..., logger=logger)
 ```
 
+JSONL logs feed the bundled visualizer:
 
-### Model Providers
-We currently support most major clients (OpenAI, Anthropic), as well as the router platforms (OpenRouter, Portkey). For local models, we recommend using vLLM (which interfaces with the [OpenAI client](https://github.com/alexzhang13/rlm/blob/main/rlm/clients/openai.py)). To view or add support for more clients, start by looking at [`rlm/clients/`](https://github.com/alexzhang13/rlm/tree/main/rlm/clients).
+```bash
+cd visualizer/
+npm run dev   # default localhost:3001
+```
 
-## Relevant Reading
-* **[Dec '25]** [Recursive Language Models arXiv](https://arxiv.org/abs/2512.24601)
-* **[Oct '25]** [Recursive Language Models Blogpost](https://alexzhang13.github.io/blog/2025/rlm/)
+## Citations
 
-If you use this code or repository in your research, please cite:
+This fork builds directly on two papers. The engine:
 
 ```bibtex
 @misc{zhang2026recursivelanguagemodels,
@@ -141,29 +154,18 @@ If you use this code or repository in your research, please cite:
 }
 ```
 
-## Optional: Trajectory metadata and logging
-`RLMChatCompletion` has an optional `metadata` field (default `None`) that holds the full trajectory (run config + all iterations and sub-calls) so you can reconstruct the run. Pass an `RLMLogger` to capture it:
+The selection strategy:
 
-- **In-memory only** (trajectory on `completion.metadata`): `logger=RLMLogger()` (no `log_dir`).
-- **Also save to disk** (JSONL for the visualizer): `logger=RLMLogger(log_dir="./logs")`.
-
-## Optional Debugging: Visualizing RLM Trajectories
-We provide a simple visualizer to inspect code, sub-LM, and root-LM calls. Use `RLMLogger(log_dir="./logs")` so each completion writes a `.jsonl` file:
-```python
-from rlm.logger import RLMLogger
-from rlm import RLM
-
-logger = RLMLogger(log_dir="./logs")
-rlm = RLM(..., logger=logger)
+```bibtex
+@misc{alizadeh2026srlm,
+      title={Recursive Language Models Meet Uncertainty: The Surprising Effectiveness of Self-Reflective Program Search for Long Context},
+      author={Keivan Alizadeh and Parshin Shojaee and Minsik Cho and Mehrdad Farajtabar},
+      year={2026},
+      eprint={2603.15653},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2603.15653},
+}
 ```
 
-To run the visualizer locally, we use Node.js and shadcn/ui:
-```
-cd visualizer/
-npm run dev        # default localhost:3001
-```
-
-You'll have the option to select saved `.jsonl` files 
-<p align="center">
-  <img src="media/visualizer.png" alt="RLM Visualizer Example" width="800"/>
-</p>
+Upstream documentation, blogpost, and minimal implementation: [docs](https://alexzhang13.github.io/rlm/) | [blogpost](https://alexzhang13.github.io/blog/2025/rlm/) | [rlm-minimal](https://github.com/alexzhang13/rlm-minimal).
