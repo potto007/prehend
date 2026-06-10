@@ -201,6 +201,17 @@ def _compute_vc_score(step_texts: list[str]) -> float:
     return total
 
 
+def _trace_len(c: RLMChatCompletion) -> float:
+    """Len(p): trace length in output tokens, per the paper.
+
+    Falls back to execution_time when the backend reported no token usage.
+    Tokens are preferred because wall clock is confounded by prefix-cache
+    hits and server slot contention.
+    """
+    tokens = c.usage_summary.total_output_tokens if c.usage_summary else 0
+    return float(tokens) if tokens and tokens > 0 else c.execution_time
+
+
 def _select_best(
     candidates: list[RLMChatCompletion], use_confidence: bool = False
 ) -> RLMChatCompletion:
@@ -209,7 +220,7 @@ def _select_best(
     1. Majority vote on final answer (self-consistency).
     2. Among the consistent set:
        - If use_confidence: joint score VC(p) * Len(p), pick argmax (closest to 0)
-       - Otherwise: pick shortest execution_time
+       - Otherwise: pick shortest trace (output tokens, else execution time)
     """
     if len(candidates) == 1:
         return candidates[0]
@@ -223,18 +234,18 @@ def _select_best(
     consistent = [c for c, a in zip(candidates, answers) if a == majority]
 
     if not use_confidence:
-        return min(consistent, key=lambda c: c.execution_time)
+        return min(consistent, key=_trace_len)
 
     def _joint_score(c: RLMChatCompletion) -> float:
         vc = _compute_vc_score(_extract_step_texts(c.metadata))
         if vc == float('-inf'):
             return float('-inf')
-        return vc * c.execution_time
+        return vc * _trace_len(c)
 
     scored = [(c, _joint_score(c)) for c in consistent]
     has_scores = any(s != float('-inf') for _, s in scored)
 
     if not has_scores:
-        return min(consistent, key=lambda c: c.execution_time)
+        return min(consistent, key=_trace_len)
 
     return max(scored, key=lambda x: x[1])[0]

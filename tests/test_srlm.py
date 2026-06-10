@@ -69,6 +69,48 @@ def _make_completion(response: str, exec_time: float) -> RLMChatCompletion:
     )
 
 
+def _make_completion_with_tokens(
+    response: str, exec_time: float, out_tokens: int
+) -> RLMChatCompletion:
+    from lm_repl.core.types import ModelUsageSummary
+
+    return RLMChatCompletion(
+        root_model="test",
+        prompt="test prompt",
+        response=response,
+        usage_summary=UsageSummary(
+            model_usage_summaries={
+                "test": ModelUsageSummary(
+                    total_calls=1, total_input_tokens=0, total_output_tokens=out_tokens
+                )
+            }
+        ),
+        execution_time=exec_time,
+    )
+
+
+class TestTraceLen:
+    def test_uses_output_tokens_when_available(self):
+        from lm_repl.core.srlm import _trace_len
+
+        c = _make_completion_with_tokens("42", exec_time=9.0, out_tokens=350)
+        assert _trace_len(c) == 350
+
+    def test_falls_back_to_execution_time_without_usage(self):
+        from lm_repl.core.srlm import _trace_len
+
+        c = _make_completion("42", exec_time=2.5)
+        assert _trace_len(c) == 2.5
+
+    def test_no_confidence_tiebreak_prefers_fewer_tokens(self):
+        """Without confidence, the consistent-set tiebreak is trace length in
+        tokens - not wall clock, which is confounded by cache hits and slots."""
+        slow_but_short = _make_completion_with_tokens("42", exec_time=9.0, out_tokens=200)
+        fast_but_long = _make_completion_with_tokens("42", exec_time=1.0, out_tokens=4000)
+        result = _select_best([slow_but_short, fast_but_long])
+        assert result is slow_but_short
+
+
 class TestSelectBest:
     def test_single_candidate(self):
         c = _make_completion("42", 1.0)
@@ -331,6 +373,18 @@ class TestSelectBestWithConfidence:
 
         result = _select_best([c1, c2], use_confidence=True)
         assert result is c2
+
+    def test_joint_score_uses_tokens_not_wall_clock(self):
+        """Len(p) is trace tokens per the paper. With equal confidence, the
+        candidate with fewer output tokens must win even if prefix-cache
+        effects made its wall clock slower."""
+        few_tokens = _make_completion_with_tokens("42", exec_time=9.0, out_tokens=200)
+        few_tokens.metadata = _make_trajectory_metadata(['{"confidence": 80}'])
+        many_tokens = _make_completion_with_tokens("42", exec_time=1.0, out_tokens=4000)
+        many_tokens.metadata = _make_trajectory_metadata(['{"confidence": 80}'])
+
+        result = _select_best([few_tokens, many_tokens], use_confidence=True)
+        assert result is few_tokens
 
     def test_confidence_scoring_reads_real_rlm_metadata(self):
         """RLM attaches logger.get_trajectory() as metadata - the iterations
