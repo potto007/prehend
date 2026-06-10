@@ -154,20 +154,50 @@ def _parse_confidence_scores(text: str) -> list[float]:
     return [min(float(m), 100.0) for m in matches]
 
 
-def _compute_vc_score(text: str) -> float:
-    """Compute verbalized confidence score (sum of log-probabilities).
+def _extract_step_texts(metadata: dict | None) -> list[str]:
+    """Per-step response texts from RLMChatCompletion.metadata.
 
-    Returns a value <= 0. Closer to 0 = higher confidence.
-    Returns -inf when no confidence scores are found or any score is 0.
+    RLM attaches logger.get_trajectory(): {"run_metadata": ..., "iterations":
+    [{"response": ..., ...}, ...]}. Also accepts a legacy {"trajectory_text":
+    str} blob as a single step.
     """
-    scores = _parse_confidence_scores(text)
-    if not scores:
+    if not isinstance(metadata, dict):
+        return []
+    iterations = metadata.get("iterations")
+    if isinstance(iterations, list) and iterations:
+        return [str(it.get("response", "") or "") for it in iterations]
+    legacy = metadata.get("trajectory_text")
+    if legacy:
+        return [str(legacy)]
+    return []
+
+
+def _compute_vc_score(step_texts: list[str]) -> float:
+    """Verbalized confidence score: sum over steps of log(confidence/100).
+
+    Uses the last reported confidence in each step. Steps with no report are
+    imputed with the mean of the reported steps (per the SRLM paper), so a
+    trajectory cannot inflate its score by skipping reports.
+
+    Returns a value <= 0; closer to 0 = higher confidence. Returns -inf when
+    no step reports any confidence, or a reported confidence is 0.
+    """
+    per_step: list[float | None] = []
+    for text in step_texts:
+        scores = _parse_confidence_scores(text)
+        per_step.append(scores[-1] if scores else None)
+
+    reported = [v for v in per_step if v is not None]
+    if not reported:
         return float('-inf')
+    mean = sum(reported) / len(reported)
+
     total = 0.0
-    for v in scores:
-        if v <= 0:
+    for v in per_step:
+        value = v if v is not None else mean
+        if value <= 0:
             return float('-inf')
-        total += math.log(v / 100.0)
+        total += math.log(value / 100.0)
     return total
 
 
@@ -196,10 +226,7 @@ def _select_best(
         return min(consistent, key=lambda c: c.execution_time)
 
     def _joint_score(c: RLMChatCompletion) -> float:
-        text = ""
-        if isinstance(c.metadata, dict):
-            text = c.metadata.get("trajectory_text", "")
-        vc = _compute_vc_score(text)
+        vc = _compute_vc_score(_extract_step_texts(c.metadata))
         if vc == float('-inf'):
             return float('-inf')
         return vc * c.execution_time

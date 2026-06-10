@@ -177,7 +177,49 @@ class TestCandidateTemperature:
 # --- Verbalized confidence & joint scoring tests ---
 
 import math
-from lm_repl.core.srlm import _parse_confidence_scores, _compute_vc_score
+from lm_repl.core.srlm import (
+    _compute_vc_score,
+    _extract_step_texts,
+    _parse_confidence_scores,
+)
+
+
+def _make_trajectory_metadata(step_responses: list[str]) -> dict:
+    """Build metadata in the real shape RLM attaches: logger.get_trajectory()."""
+    return {
+        "run_metadata": {"root_model": "test"},
+        "iterations": [
+            {
+                "type": "iteration",
+                "iteration": i + 1,
+                "prompt": "step prompt",
+                "response": resp,
+                "code_blocks": [],
+                "final_answer": None,
+                "iteration_time": 1.0,
+            }
+            for i, resp in enumerate(step_responses)
+        ],
+    }
+
+
+class TestExtractStepTexts:
+    def test_none_metadata(self):
+        assert _extract_step_texts(None) == []
+
+    def test_empty_dict(self):
+        assert _extract_step_texts({}) == []
+
+    def test_real_rlm_trajectory_shape(self):
+        meta = _make_trajectory_metadata(["step one text", "step two text"])
+        assert _extract_step_texts(meta) == ["step one text", "step two text"]
+
+    def test_legacy_trajectory_text(self):
+        assert _extract_step_texts({"trajectory_text": "blob"}) == ["blob"]
+
+    def test_iterations_missing_response(self):
+        meta = {"iterations": [{"iteration": 1}, {"iteration": 2, "response": "ok"}]}
+        assert _extract_step_texts(meta) == ["", "ok"]
 
 
 class TestParseConfidenceScores:
@@ -211,22 +253,44 @@ class TestParseConfidenceScores:
 
 class TestComputeVCScore:
     def test_perfect_confidence(self):
-        text = '{"confidence": 100}\n{"confidence": 100}'
-        assert _compute_vc_score(text) == 0.0  # log(1) + log(1) = 0
+        steps = ['{"confidence": 100}', '{"confidence": 100}']
+        assert _compute_vc_score(steps) == 0.0  # log(1) + log(1) = 0
 
     def test_partial_confidence(self):
-        text = '{"confidence": 50}'
-        score = _compute_vc_score(text)
+        steps = ['{"confidence": 50}']
+        score = _compute_vc_score(steps)
         assert score < 0  # log(0.5) is negative
         assert abs(score - math.log(0.5)) < 1e-6
 
     def test_no_scores_returns_neg_inf(self):
-        assert _compute_vc_score("no confidence here") == float('-inf')
+        assert _compute_vc_score(["no confidence here", "still none"]) == float('-inf')
+
+    def test_empty_steps_returns_neg_inf(self):
+        assert _compute_vc_score([]) == float('-inf')
 
     def test_zero_confidence_clamps(self):
-        text = '{"confidence": 0}'
-        score = _compute_vc_score(text)
+        steps = ['{"confidence": 0}']
+        score = _compute_vc_score(steps)
         assert score == float('-inf')  # log(0) is -inf, use floor
+
+    def test_missing_steps_imputed_with_trajectory_mean(self):
+        """A step without a confidence report is filled with the mean of the
+        reported steps (per the paper), so skipping reports cannot inflate VC."""
+        steps = ['code... {"confidence": 80}', 'code without any report']
+        score = _compute_vc_score(steps)
+        expected = 2 * math.log(0.8)  # second step imputed with mean 80
+        assert abs(score - expected) < 1e-6
+
+    def test_imputation_prevents_underreporting_gaming(self):
+        """Reporting on 1 of 3 steps must NOT beat honestly reporting all 3."""
+        underreporter = ['{"confidence": 90}', 'no report', 'no report']
+        honest = ['{"confidence": 90}', '{"confidence": 90}', '{"confidence": 90}']
+        assert abs(_compute_vc_score(underreporter) - _compute_vc_score(honest)) < 1e-6
+
+    def test_last_score_per_step_wins(self):
+        """When a step contains several confidence lines, use the final one."""
+        steps = ['draft {"confidence": 20} ... revised {"confidence": 90}']
+        assert abs(_compute_vc_score(steps) - math.log(0.9)) < 1e-6
 
 
 class TestSelectBestWithConfidence:
@@ -267,3 +331,24 @@ class TestSelectBestWithConfidence:
 
         result = _select_best([c1, c2], use_confidence=True)
         assert result is c2
+
+    def test_confidence_scoring_reads_real_rlm_metadata(self):
+        """RLM attaches logger.get_trajectory() as metadata - the iterations
+        shape, NOT a trajectory_text key. VC selection must work on it.
+
+        Regression: _joint_score looked up metadata["trajectory_text"], which
+        no real RLM run ever sets, so confidence selection silently fell back
+        to execution_time for every real trajectory."""
+        confident = _make_completion("42", 5.0)
+        confident.metadata = _make_trajectory_metadata(
+            ['x = ctx.find("v") {"confidence": 95}', 'FINAL(42) {"confidence": 95}']
+        )
+        unsure = _make_completion("42", 1.0)
+        unsure.metadata = _make_trajectory_metadata(
+            ['hmm {"confidence": 30}', 'FINAL(42) {"confidence": 25}']
+        )
+
+        # Time-based selection would pick `unsure` (1.0s < 5.0s). Confidence
+        # selection must pick `confident` despite the slower wall clock.
+        result = _select_best([confident, unsure], use_confidence=True)
+        assert result is confident
