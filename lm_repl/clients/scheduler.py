@@ -22,12 +22,21 @@ Scheduling rules:
       the waiting clause a steady request stream would keep the pool occupied
       and starve the retry forever.
     - Otherwise requests dispatch by priority (lower number first), FIFO
-      within the same level.
+      within the same level - subject to aging: every *aging_interval* seconds
+      a p2-p5 waiter spends queued is worth one priority level, so a steady
+      stream of HIGH traffic cannot starve NORMAL/LOW/BACKGROUND forever.
+      Aging never crosses into p1: an aged waiter is admitted as a normal
+      request, and a waiting p1 outranks any aged waiter.
+
+Aging is implemented as a static sort key (priority * aging_interval +
+enqueue_time): every waiter ages at the same rate, so relative order is fixed
+at enqueue time and the min-heaps never need rebalancing.
 """
 
 import asyncio
 import heapq
 import threading
+import time
 from enum import IntEnum
 
 
@@ -61,39 +70,58 @@ def resolve_priority(value: str | int | None) -> int:
 
 
 class _Waiter:
-    __slots__ = ("priority", "seq", "event")
+    __slots__ = ("priority", "band", "vkey", "seq", "event")
 
-    def __init__(self, priority: int, seq: int):
+    def __init__(self, priority: int, band: int, vkey: float, seq: int):
         self.priority = priority
+        self.band = band
+        self.vkey = vkey
         self.seq = seq
         self.event = threading.Event()
 
     def __lt__(self, other: "_Waiter") -> bool:
-        if self.priority != other.priority:
-            return self.priority < other.priority
+        if self.band != other.band:
+            return self.band < other.band
+        if self.vkey != other.vkey:
+            return self.vkey < other.vkey
         return self.seq < other.seq
 
 
 class _AsyncWaiter:
-    __slots__ = ("priority", "seq", "event", "loop")
+    __slots__ = ("priority", "band", "vkey", "seq", "event", "loop")
 
-    def __init__(self, priority: int, seq: int, loop: asyncio.AbstractEventLoop):
+    def __init__(
+        self, priority: int, band: int, vkey: float, seq: int, loop: asyncio.AbstractEventLoop
+    ):
         self.priority = priority
+        self.band = band
+        self.vkey = vkey
         self.seq = seq
         self.loop = loop
         self.event = asyncio.Event()
 
     def __lt__(self, other: "_AsyncWaiter") -> bool:
-        if self.priority != other.priority:
-            return self.priority < other.priority
+        if self.band != other.band:
+            return self.band < other.band
+        if self.vkey != other.vkey:
+            return self.vkey < other.vkey
         return self.seq < other.seq
 
 
 class RequestScheduler:
     """Thread-safe priority scheduler with both sync and async acquire/release."""
 
-    def __init__(self, max_concurrent: int = 8):
+    def __init__(self, max_concurrent: int = 8, aging_interval: float | None = 30.0):
+        """
+        Args:
+            max_concurrent: Most requests allowed in flight at once. Match the
+                server's slot count (llama-server --parallel).
+            aging_interval: Seconds of queue wait worth one priority level for
+                p2-p5 waiters (an old LOW eventually outranks a fresh HIGH).
+                None disables aging (strict priority, FIFO within a level).
+        """
         self._max_concurrent = max_concurrent
+        self._aging_interval = aging_interval
         self._lock = threading.Lock()
         self._active = 0
         self._active_p1 = 0
@@ -101,6 +129,17 @@ class RequestScheduler:
         self._seq = 0
         self._sync_waiters: list[_Waiter] = []
         self._async_waiters: list[_AsyncWaiter] = []
+
+    def _sort_fields(self, priority: int) -> tuple[int, float]:
+        """(band, vkey) for a waiter enqueued now. Band 0 (p1) sorts before
+        band 1 (p2-p5) unconditionally - aging never reaches p1. Within band 1
+        the static vkey encodes aging; with aging disabled it is the bare
+        priority, restoring strict (priority, seq) order."""
+        if priority == Priority.CONTENTION_RETRY:
+            return 0, float(priority)
+        if self._aging_interval is not None:
+            return 1, priority * self._aging_interval + time.monotonic()
+        return 1, float(priority)
 
     def _can_dispatch(self, priority: int) -> bool:
         if priority == Priority.CONTENTION_RETRY:
@@ -153,7 +192,8 @@ class RequestScheduler:
                 self._admit(priority)
                 return
             self._seq += 1
-            waiter = _Waiter(priority, self._seq)
+            band, vkey = self._sort_fields(priority)
+            waiter = _Waiter(priority, band, vkey, self._seq)
             if priority == Priority.CONTENTION_RETRY:
                 self._waiting_p1 += 1
             heapq.heappush(self._sync_waiters, waiter)
@@ -176,7 +216,8 @@ class RequestScheduler:
                 self._admit(priority)
                 return
             self._seq += 1
-            waiter = _AsyncWaiter(priority, self._seq, loop)
+            band, vkey = self._sort_fields(priority)
+            waiter = _AsyncWaiter(priority, band, vkey, self._seq, loop)
             if priority == Priority.CONTENTION_RETRY:
                 self._waiting_p1 += 1
             heapq.heappush(self._async_waiters, waiter)

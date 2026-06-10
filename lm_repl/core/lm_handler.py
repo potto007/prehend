@@ -147,6 +147,7 @@ class LMHandler:
         other_backend_client: BaseLM | None = None,
         batch_max_concurrent: int = 16,
         scheduler_max_concurrent: int | None = None,
+        scheduler_aging_interval: float | None = 30.0,
     ):
         self.default_client = client
         self.other_backend_client = other_backend_client
@@ -161,9 +162,14 @@ class LMHandler:
         # priority queue (and p1 exclusivity) spans all traffic. Match
         # scheduler_max_concurrent to the server's slot count (llama-server --parallel).
         # None disables scheduling entirely (previous behavior).
+        # scheduler_aging_interval: seconds of queue wait worth one priority level
+        # (anti-starvation); None disables aging.
         self.scheduler: RequestScheduler | None = None
         if scheduler_max_concurrent is not None:
-            self.scheduler = RequestScheduler(max_concurrent=scheduler_max_concurrent)
+            self.scheduler = RequestScheduler(
+                max_concurrent=scheduler_max_concurrent,
+                aging_interval=scheduler_aging_interval,
+            )
             for c in (client, other_backend_client):
                 if c is not None and hasattr(c, "scheduler"):
                     c.scheduler = self.scheduler

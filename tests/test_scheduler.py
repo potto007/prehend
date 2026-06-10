@@ -242,6 +242,132 @@ def test_fifo_within_same_priority():
 
 
 # =============================================================================
+# Aging / fairness
+# =============================================================================
+
+
+def test_aged_low_priority_overtakes_fresh_high():
+    """One aging_interval of waiting is worth one priority level, so an old
+    LOW (p4) outranks a HIGH (p2) that arrives more than 2 intervals later."""
+    s = RequestScheduler(max_concurrent=1, aging_interval=0.05)
+    s.acquire(Priority.NORMAL)  # occupy the only slot
+
+    order = []
+
+    def waiter(priority, tag):
+        s.acquire(priority)
+        order.append(tag)
+        s.release(priority)
+
+    t_low = threading.Thread(target=waiter, args=(Priority.LOW, "low"), daemon=True)
+    t_low.start()
+    assert wait_until(lambda: s.waiting == 1)
+
+    time.sleep(0.15)  # LOW ages 3 intervals; parity needed only 2
+
+    t_high = threading.Thread(target=waiter, args=(Priority.HIGH, "high"), daemon=True)
+    t_high.start()
+    assert wait_until(lambda: s.waiting == 2)
+
+    s.release(Priority.NORMAL)
+    t_low.join(2)
+    t_high.join(2)
+    assert order == ["low", "high"]
+    assert s.active == 0
+
+
+def test_aging_disabled_pure_priority():
+    """aging_interval=None preserves strict priority order regardless of wait."""
+    s = RequestScheduler(max_concurrent=1, aging_interval=None)
+    s.acquire(Priority.NORMAL)
+
+    order = []
+
+    def waiter(priority, tag):
+        s.acquire(priority)
+        order.append(tag)
+        s.release(priority)
+
+    t_low = threading.Thread(target=waiter, args=(Priority.LOW, "low"), daemon=True)
+    t_low.start()
+    assert wait_until(lambda: s.waiting == 1)
+
+    time.sleep(0.15)
+
+    t_high = threading.Thread(target=waiter, args=(Priority.HIGH, "high"), daemon=True)
+    t_high.start()
+    assert wait_until(lambda: s.waiting == 2)
+
+    s.release(Priority.NORMAL)
+    t_low.join(2)
+    t_high.join(2)
+    assert order == ["high", "low"]
+    assert s.active == 0
+
+
+def test_p1_outranks_aged_waiters():
+    """No amount of aging crosses the band boundary: a waiting p1 dispatches
+    before any aged p2-p5 waiter."""
+    s = RequestScheduler(max_concurrent=1, aging_interval=0.01)
+    s.acquire(Priority.NORMAL)
+
+    order = []
+
+    def waiter(priority, tag):
+        s.acquire(priority)
+        order.append(tag)
+        s.release(priority)
+
+    t_low = threading.Thread(target=waiter, args=(Priority.LOW, "low"), daemon=True)
+    t_low.start()
+    assert wait_until(lambda: s.waiting == 1)
+
+    time.sleep(0.1)  # LOW ages 10 intervals
+
+    t_p1 = threading.Thread(
+        target=waiter, args=(Priority.CONTENTION_RETRY, "p1"), daemon=True
+    )
+    t_p1.start()
+    assert wait_until(lambda: s.waiting == 2)
+
+    s.release(Priority.NORMAL)
+    t_p1.join(2)
+    t_low.join(2)
+    assert order == ["p1", "low"]
+    assert s.active == 0
+
+
+def test_aged_admission_keeps_normal_semantics():
+    """An aged waiter is admitted as a normal request: no p1 marker, no solo
+    gating of other traffic."""
+    s = RequestScheduler(max_concurrent=2, aging_interval=0.01)
+    s.acquire(Priority.NORMAL)
+    s.acquire(Priority.NORMAL)
+
+    admitted = threading.Event()
+
+    def aged_low():
+        s.acquire(Priority.LOW)
+        admitted.set()
+
+    t = threading.Thread(target=aged_low, daemon=True)
+    t.start()
+    assert wait_until(lambda: s.waiting == 1)
+    time.sleep(0.05)  # age well past HIGH parity
+
+    s.release(Priority.NORMAL)
+    assert admitted.wait(2)
+    assert s._active_p1 == 0
+    # Aged admission must not block other traffic the way p1 does.
+    s.release(Priority.NORMAL)
+    s.acquire(Priority.NORMAL)
+    assert s.active == 2
+    s.release(Priority.NORMAL)
+    s.release(Priority.LOW)
+    assert s.active == 0
+
+
+# =============================================================================
 # Scheduler core (async + mixed)
 # =============================================================================
 
@@ -655,6 +781,16 @@ def test_lm_handler_creates_and_attaches_scheduler():
     # Both clients share the one scheduler so the priority queue spans all traffic.
     assert default.scheduler is handler.scheduler
     assert other.scheduler is handler.scheduler
+
+
+def test_lm_handler_scheduler_aging_interval_passthrough():
+    client = _make_client()
+    handler = LMHandler(client, scheduler_max_concurrent=4, scheduler_aging_interval=7.5)
+    assert handler.scheduler._aging_interval == 7.5
+
+    # Default is 30s aging.
+    handler = LMHandler(_make_client(), scheduler_max_concurrent=4)
+    assert handler.scheduler._aging_interval == 30.0
 
 
 def test_lm_handler_no_scheduler_by_default():

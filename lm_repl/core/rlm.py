@@ -71,6 +71,7 @@ class RLM:
         compaction_threshold_pct: float = 0.85,
         max_concurrent_subcalls: int = 4,
         scheduler_max_concurrent: int | None = None,
+        scheduler_aging_interval: float | None = 30.0,
         on_subcall_start: Callable[[int, str, str], None] | None = None,
         on_subcall_complete: Callable[[int, str, float, str | None], None] | None = None,
         on_iteration_start: Callable[[int, int], None] | None = None,
@@ -111,6 +112,10 @@ class RLM:
                 backend clients, capping in-flight requests and enabling context-contention
                 retries at exclusive (p1) priority. Match this to the inference server's slot
                 count (llama-server --parallel). None (default) disables scheduling.
+            scheduler_aging_interval: Seconds of queue wait worth one priority level for
+                p2-p5 requests (anti-starvation aging: an old "low" eventually outranks a
+                fresh "high"). None disables aging. Only used when scheduler_max_concurrent
+                is set. Default 30.0.
             on_subcall_start: Callback fired when a child RLM starts. Args: (depth, model, prompt_preview).
             on_subcall_complete: Callback fired when a child RLM completes. Args: (depth, model, duration, error_or_none).
             on_iteration_start: Callback fired when an iteration starts. Args: (depth, iteration_num).
@@ -143,6 +148,7 @@ class RLM:
         self.compaction_threshold_pct = compaction_threshold_pct
         self.max_concurrent_subcalls = max_concurrent_subcalls
         self.scheduler_max_concurrent = scheduler_max_concurrent
+        self.scheduler_aging_interval = scheduler_aging_interval
 
         self.depth = depth
         self.max_depth = max_depth
@@ -218,6 +224,7 @@ class RLM:
             client,
             other_backend_client=other_backend_client,
             scheduler_max_concurrent=self.scheduler_max_concurrent,
+            scheduler_aging_interval=self.scheduler_aging_interval,
         )
 
         # Register other clients to be available as sub-call options (by model name).
