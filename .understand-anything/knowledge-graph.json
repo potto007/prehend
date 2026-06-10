@@ -1,0 +1,4268 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "rlms",
+    "languages": [
+      "python",
+      "typescript",
+      "yaml",
+      "css",
+      "javascript",
+      "json",
+      "toml",
+      "makefile",
+      "markdown"
+    ],
+    "frameworks": [
+      "GitHub Actions",
+      "Next.js",
+      "React",
+      "Tailwind CSS",
+      "pytest"
+    ],
+    "description": "Recursive Language Models (RLMs) - an extensible inference engine that enables language models to programmatically examine, decompose, and recursively call themselves over near-infinite length contexts via a REPL environment.",
+    "analyzedAt": "2026-05-27T19:26:15.265Z",
+    "gitCommitHash": "e0ef4790249fb50b55d20252a6116f6cc29058cd"
+  },
+  "nodes": [
+    {
+      "id": "file:.gitattributes",
+      "type": "file",
+      "name": ".gitattributes",
+      "filePath": ".gitattributes",
+      "summary": "Git attributes configuration for the repository, likely controlling line ending normalization or diff behavior.",
+      "tags": [
+        "configuration",
+        "git",
+        "version-control"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.pre-commit-config.yaml",
+      "type": "config",
+      "name": ".pre-commit-config.yaml",
+      "filePath": ".pre-commit-config.yaml",
+      "summary": "Pre-commit hooks configuration defining automated code quality checks (linting, formatting) that run before each commit.",
+      "tags": [
+        "configuration",
+        "code-quality",
+        "pre-commit",
+        "development"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:pyproject.toml",
+      "type": "config",
+      "name": "pyproject.toml",
+      "filePath": "pyproject.toml",
+      "summary": "Python project configuration defining the 'rlms' package metadata, dependencies (openai, anthropic, google-genai, dotenv), build system (setuptools), development tooling (ruff linter/formatter, pytest), and optional extras for Modal, Prime, and IPython environments.",
+      "tags": [
+        "configuration",
+        "build-system",
+        "python",
+        "dependencies",
+        "packaging"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:MANIFEST.IN",
+      "type": "file",
+      "name": "MANIFEST.IN",
+      "filePath": "MANIFEST.IN",
+      "summary": "Package manifest controlling which files are included in or excluded from the Python source distribution (sdist).",
+      "tags": [
+        "configuration",
+        "packaging",
+        "python"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:Makefile",
+      "type": "file",
+      "name": "Makefile",
+      "filePath": "Makefile",
+      "summary": "Development automation Makefile providing targets for installing dependencies (uv sync), running examples (quickstart, Docker, Modal REPLs), linting/formatting with ruff, and running tests with pytest.",
+      "tags": [
+        "build-system",
+        "development",
+        "automation",
+        "infrastructure"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "pipeline:.github/workflows/docs.yml",
+      "type": "pipeline",
+      "name": "docs.yml",
+      "filePath": ".github/workflows/docs.yml",
+      "summary": "GitHub Actions workflow that builds and deploys project documentation to GitHub Pages on push to main, using MkDocs with Material theme.",
+      "tags": [
+        "ci-cd",
+        "documentation",
+        "deployment",
+        "github-actions"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "pipeline:.github/workflows/publish.yml",
+      "type": "pipeline",
+      "name": "publish.yml",
+      "filePath": ".github/workflows/publish.yml",
+      "summary": "GitHub Actions workflow that builds and publishes the rlms package to PyPI when a new release is created, using trusted publishing with OIDC.",
+      "tags": [
+        "ci-cd",
+        "deployment",
+        "packaging",
+        "github-actions"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "pipeline:.github/workflows/style.yml",
+      "type": "pipeline",
+      "name": "style.yml",
+      "filePath": ".github/workflows/style.yml",
+      "summary": "GitHub Actions workflow running ruff linting and formatting checks on pushes to main and pull requests to enforce code style consistency.",
+      "tags": [
+        "ci-cd",
+        "code-quality",
+        "linting",
+        "github-actions"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "pipeline:.github/workflows/test.yml",
+      "type": "pipeline",
+      "name": "test.yml",
+      "filePath": ".github/workflows/test.yml",
+      "summary": "GitHub Actions workflow running the pytest test suite across Python 3.11 and 3.12 on pushes to main and pull requests, excluding Modal and API-dependent tests.",
+      "tags": [
+        "ci-cd",
+        "testing",
+        "github-actions",
+        "python"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/workflows/README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": ".github/workflows/README.md",
+      "summary": "Documentation for the GitHub Actions CI/CD workflows, covering the Style and Test workflows, branch protection setup, running checks locally, and customization options.",
+      "tags": [
+        "documentation",
+        "ci-cd",
+        "development",
+        "github-actions"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:AGENTS.md",
+      "type": "document",
+      "name": "AGENTS.md",
+      "filePath": "AGENTS.md",
+      "summary": "Comprehensive developer guide for AI coding agents and contributors, covering setup, code style, testing, LM client development patterns, environment development patterns, state management, and the socket/HTTP broker architecture for environment-LM handler communication.",
+      "tags": [
+        "documentation",
+        "development",
+        "architecture",
+        "contributing"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:CONTRIBUTING.md",
+      "type": "document",
+      "name": "CONTRIBUTING.md",
+      "filePath": "CONTRIBUTING.md",
+      "summary": "Prioritized TODO list for contributors organized into urgent, nice-to-have, and aspirational categories covering new client support, environment improvements, and advanced features.",
+      "tags": [
+        "documentation",
+        "contributing",
+        "roadmap"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "Project overview for Recursive Language Models (RLMs), a task-agnostic inference paradigm enabling LMs to programmatically examine, decompose, and recursively call themselves. Covers quick setup via pip, REPL environments (local exec, IPython, Docker, Modal, Prime Intellect), model provider support, and trajectory logging.",
+      "tags": [
+        "documentation",
+        "entry-point",
+        "overview",
+        "api-reference"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "rlm/__init__.py",
+      "summary": "Top-level package entry point that re-exports the RLM class and all custom exception types (BudgetExceededError, CancellationError, etc.) as the public API surface.",
+      "tags": [
+        "entry-point",
+        "barrel",
+        "exports"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:rlm/core/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "rlm/core/__init__.py",
+      "summary": "Empty package initializer for the rlm.core subpackage, which contains the core RLM engine, type definitions, communication utilities, and LM handler.",
+      "tags": [
+        "entry-point",
+        "barrel",
+        "package-init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:rlm/core/types.py",
+      "type": "file",
+      "name": "types.py",
+      "filePath": "rlm/core/types.py",
+      "summary": "Core data model definitions for the RLM engine, including dataclasses for usage tracking (ModelUsageSummary, UsageSummary), chat completions (RLMChatCompletion), execution results (REPLResult, CodeBlock), iteration tracking (RLMIteration), metadata (RLMMetadata), and query context analysis (QueryMetadata).",
+      "tags": [
+        "type-definition",
+        "data-model",
+        "serialization",
+        "core"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:rlm/core/rlm.py",
+      "type": "file",
+      "name": "rlm.py",
+      "filePath": "rlm/core/rlm.py",
+      "summary": "Central RLM engine implementing the recursive language model inference loop. Manages environment lifecycle, LM handler spawning, iterative completion turns with code execution, context compaction, timeout/budget/token limit enforcement, recursive sub-calls, and persistent environment support.",
+      "tags": [
+        "core",
+        "service",
+        "entry-point",
+        "inference-engine"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Uses Python context managers for resource lifecycle and contextlib.contextmanager for the spawn/cleanup pattern in _spawn_completion_context."
+    },
+    {
+      "id": "file:rlm/core/lm_handler.py",
+      "type": "file",
+      "name": "lm_handler.py",
+      "filePath": "rlm/core/lm_handler.py",
+      "summary": "Socket-based LM request handler and server that bridges REPL environments with language model clients. Runs a threaded TCP server accepting LM completion requests, supporting both single and batched (async concurrent) inference calls.",
+      "tags": [
+        "service",
+        "middleware",
+        "networking",
+        "core"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Uses Python's socketserver.TCPServer with ThreadingMixIn for concurrent request handling, and asyncio.gather for batched parallel completions."
+    },
+    {
+      "id": "file:rlm/core/comms_utils.py",
+      "type": "file",
+      "name": "comms_utils.py",
+      "filePath": "rlm/core/comms_utils.py",
+      "summary": "Low-level socket communication utilities and request/response protocol types for the LM handler. Implements length-prefixed JSON message framing (struct.pack) over TCP sockets, with LMRequest/LMResponse dataclasses and helper functions for sending single and batched LM requests.",
+      "tags": [
+        "utility",
+        "networking",
+        "serialization",
+        "core"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Uses struct.pack/unpack for binary length-prefixed framing over raw TCP sockets - a common pattern for reliable message boundary detection."
+    },
+    {
+      "id": "file:rlm/clients/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "rlm/clients/__init__.py",
+      "summary": "Client factory module providing get_client() that routes backend identifiers (openai, vllm, anthropic, gemini, portkey, openrouter, vercel, azure_openai) to the appropriate LM client implementation via lazy imports.",
+      "tags": [
+        "factory",
+        "entry-point",
+        "barrel",
+        "routing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/clients/base_lm.py",
+      "type": "file",
+      "name": "base_lm.py",
+      "filePath": "rlm/clients/base_lm.py",
+      "summary": "Abstract base class defining the interface all LM clients must implement: synchronous/async completion, usage summary tracking, and last-usage retrieval with a configurable timeout.",
+      "tags": [
+        "type-definition",
+        "service",
+        "abstract-base-class",
+        "core"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:rlm/clients/openai.py",
+      "type": "file",
+      "name": "openai.py",
+      "filePath": "rlm/clients/openai.py",
+      "summary": "OpenAI API client implementation supporting sync and async chat completions with detailed cost tracking (input/output/cached tokens, reasoning tokens), model-level usage summaries, and configurable parameters passed through to the OpenAI SDK.",
+      "tags": [
+        "service",
+        "api-handler",
+        "openai",
+        "llm-client"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/clients/anthropic.py",
+      "type": "file",
+      "name": "anthropic.py",
+      "filePath": "rlm/clients/anthropic.py",
+      "summary": "Anthropic Claude API client implementation with sync/async message creation, message format conversion from OpenAI-style chat messages to Anthropic's system/messages format, and per-model cost tracking.",
+      "tags": [
+        "service",
+        "api-handler",
+        "anthropic",
+        "llm-client"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/clients/gemini.py",
+      "type": "file",
+      "name": "gemini.py",
+      "filePath": "rlm/clients/gemini.py",
+      "summary": "Google Gemini API client implementation using the google-genai SDK with sync/async content generation, message format conversion to Gemini's Content/Part structure, configurable HTTP timeout, and per-model cost tracking.",
+      "tags": [
+        "service",
+        "api-handler",
+        "gemini",
+        "llm-client"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/core/types.py:ModelUsageSummary",
+      "type": "class",
+      "name": "ModelUsageSummary",
+      "filePath": "rlm/core/types.py",
+      "lineRange": [
+        43,
+        66
+      ],
+      "summary": "Dataclass tracking per-model API usage metrics including total calls, input/output token counts, and estimated cost with dict serialization support.",
+      "tags": [
+        "data-model",
+        "serialization",
+        "usage-tracking"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:rlm/core/types.py:UsageSummary",
+      "type": "class",
+      "name": "UsageSummary",
+      "filePath": "rlm/core/types.py",
+      "lineRange": [
+        70,
+        111
+      ],
+      "summary": "Aggregate usage summary across multiple models, providing computed properties for total cost, input/output tokens, and dict serialization/deserialization.",
+      "tags": [
+        "data-model",
+        "serialization",
+        "usage-tracking"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/core/types.py:RLMChatCompletion",
+      "type": "class",
+      "name": "RLMChatCompletion",
+      "filePath": "rlm/core/types.py",
+      "lineRange": [
+        118,
+        151
+      ],
+      "summary": "Dataclass representing the final result of an RLM completion call, containing the root model, prompt, response, usage summary, execution time, and optional metadata.",
+      "tags": [
+        "data-model",
+        "serialization",
+        "api-response"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:rlm/core/types.py:REPLResult",
+      "type": "class",
+      "name": "REPLResult",
+      "filePath": "rlm/core/types.py",
+      "lineRange": [
+        155,
+        190
+      ],
+      "summary": "Represents the result of executing code in a REPL environment, capturing stdout, stderr, local variables, execution time, LLM sub-calls, and optional final answer.",
+      "tags": [
+        "data-model",
+        "serialization",
+        "execution-result"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/core/types.py:RLMIteration",
+      "type": "class",
+      "name": "RLMIteration",
+      "filePath": "rlm/core/types.py",
+      "lineRange": [
+        203,
+        217
+      ],
+      "summary": "Dataclass representing a single iteration of the RLM completion loop, including the prompt, LLM response, extracted code blocks with results, optional final answer, and timing.",
+      "tags": [
+        "data-model",
+        "serialization",
+        "iteration-tracking"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:rlm/core/types.py:RLMMetadata",
+      "type": "class",
+      "name": "RLMMetadata",
+      "filePath": "rlm/core/types.py",
+      "lineRange": [
+        226,
+        250
+      ],
+      "summary": "Dataclass capturing RLM instance configuration metadata including model, depth/iteration limits, backend settings, environment type, and sanitized kwargs for logging.",
+      "tags": [
+        "data-model",
+        "configuration",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:rlm/core/types.py:QueryMetadata",
+      "type": "class",
+      "name": "QueryMetadata",
+      "filePath": "rlm/core/types.py",
+      "lineRange": [
+        259,
+        303
+      ],
+      "summary": "Analyzes and stores metadata about user query prompts including context lengths, total context size, and context type classification (string, chat messages, or no-context) to inform system prompt construction.",
+      "tags": [
+        "data-model",
+        "prompt-analysis",
+        "utility"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/core/rlm.py:RLM",
+      "type": "class",
+      "name": "RLM",
+      "filePath": "rlm/core/rlm.py",
+      "lineRange": [
+        41,
+        861
+      ],
+      "summary": "Core engine class implementing recursive language model inference. Manages the full completion lifecycle: spawning environments and LM handlers, running iterative prompt-execute-observe turns, context compaction, recursive sub-calls to child RLM instances, and enforcing timeout/budget/token/error limits.",
+      "tags": [
+        "core",
+        "service",
+        "inference-engine",
+        "entry-point"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/core/lm_handler.py:LMRequestHandler",
+      "type": "class",
+      "name": "LMRequestHandler",
+      "filePath": "rlm/core/lm_handler.py",
+      "lineRange": [
+        17,
+        117
+      ],
+      "summary": "TCP request handler for the LM server that receives socket-based LM requests, dispatches them to the appropriate client for single or batched (async) completion, and returns serialized responses.",
+      "tags": [
+        "service",
+        "networking",
+        "request-handler"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/core/lm_handler.py:LMHandler",
+      "type": "class",
+      "name": "LMHandler",
+      "filePath": "rlm/core/lm_handler.py",
+      "lineRange": [
+        127,
+        233
+      ],
+      "summary": "Manages the lifecycle of a threaded TCP server that proxies LM completion requests from REPL environments to registered LM clients, supporting multiple backends and usage summary aggregation.",
+      "tags": [
+        "service",
+        "middleware",
+        "lifecycle-management"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/core/comms_utils.py:LMRequest",
+      "type": "class",
+      "name": "LMRequest",
+      "filePath": "rlm/core/comms_utils.py",
+      "lineRange": [
+        22,
+        58
+      ],
+      "summary": "Dataclass representing an LM completion request sent over the socket protocol, supporting both single-prompt and batched-prompts modes with model routing and recursion depth tracking.",
+      "tags": [
+        "data-model",
+        "networking",
+        "serialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/core/comms_utils.py:LMResponse",
+      "type": "class",
+      "name": "LMResponse",
+      "filePath": "rlm/core/comms_utils.py",
+      "lineRange": [
+        62,
+        138
+      ],
+      "summary": "Dataclass representing an LM completion response with factory methods for success (single/batched) and error responses, supporting serialization for socket transport.",
+      "tags": [
+        "data-model",
+        "networking",
+        "serialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/core/comms_utils.py:socket_send",
+      "type": "function",
+      "name": "socket_send",
+      "filePath": "rlm/core/comms_utils.py",
+      "lineRange": [
+        146,
+        152
+      ],
+      "summary": "Sends a JSON-serialized message over a TCP socket using a 4-byte length prefix for reliable framing.",
+      "tags": [
+        "utility",
+        "networking",
+        "serialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:rlm/core/comms_utils.py:socket_recv",
+      "type": "function",
+      "name": "socket_recv",
+      "filePath": "rlm/core/comms_utils.py",
+      "lineRange": [
+        155,
+        176
+      ],
+      "summary": "Receives a length-prefixed JSON message from a TCP socket, reading the 4-byte header then accumulating payload bytes until complete.",
+      "tags": [
+        "utility",
+        "networking",
+        "serialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/core/comms_utils.py:socket_request",
+      "type": "function",
+      "name": "socket_request",
+      "filePath": "rlm/core/comms_utils.py",
+      "lineRange": [
+        179,
+        196
+      ],
+      "summary": "Opens a TCP connection to a given address, sends a request, and returns the response using the length-prefixed protocol.",
+      "tags": [
+        "utility",
+        "networking",
+        "client"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/core/comms_utils.py:send_lm_request",
+      "type": "function",
+      "name": "send_lm_request",
+      "filePath": "rlm/core/comms_utils.py",
+      "lineRange": [
+        204,
+        224
+      ],
+      "summary": "High-level function that sends a single LMRequest to the LM handler server and returns the deserialized LMResponse, with error handling for connection failures.",
+      "tags": [
+        "utility",
+        "networking",
+        "api-handler"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/core/comms_utils.py:send_lm_request_batched",
+      "type": "function",
+      "name": "send_lm_request_batched",
+      "filePath": "rlm/core/comms_utils.py",
+      "lineRange": [
+        227,
+        264
+      ],
+      "summary": "Sends a batched LM request with multiple prompts to the handler server and returns individual LMResponse objects per prompt, handling partial failures gracefully.",
+      "tags": [
+        "utility",
+        "networking",
+        "batch-processing"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:rlm/clients/__init__.py:get_client",
+      "type": "function",
+      "name": "get_client",
+      "filePath": "rlm/clients/__init__.py",
+      "lineRange": [
+        11,
+        59
+      ],
+      "summary": "Factory function routing backend identifiers (openai, vllm, anthropic, gemini, portkey, openrouter, vercel, azure_openai) to their corresponding LM client class instances via lazy imports.",
+      "tags": [
+        "factory",
+        "routing",
+        "client-instantiation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/clients/base_lm.py:BaseLM",
+      "type": "class",
+      "name": "BaseLM",
+      "filePath": "rlm/clients/base_lm.py",
+      "lineRange": [
+        10,
+        37
+      ],
+      "summary": "Abstract base class defining the standard interface for all LM clients: sync/async completion, usage summary, and last-usage retrieval methods.",
+      "tags": [
+        "type-definition",
+        "abstract-base-class",
+        "interface"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:rlm/clients/openai.py:OpenAIClient",
+      "type": "class",
+      "name": "OpenAIClient",
+      "filePath": "rlm/clients/openai.py",
+      "lineRange": [
+        21,
+        170
+      ],
+      "summary": "Concrete BaseLM implementation wrapping the OpenAI SDK for sync/async chat completions with detailed per-model cost tracking including cached and reasoning token breakdowns.",
+      "tags": [
+        "service",
+        "api-handler",
+        "openai",
+        "llm-client"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/clients/anthropic.py:AnthropicClient",
+      "type": "class",
+      "name": "AnthropicClient",
+      "filePath": "rlm/clients/anthropic.py",
+      "lineRange": [
+        10,
+        112
+      ],
+      "summary": "Concrete BaseLM implementation for the Anthropic Claude API with message format conversion, sync/async completion, and per-model usage tracking.",
+      "tags": [
+        "service",
+        "api-handler",
+        "anthropic",
+        "llm-client"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/clients/gemini.py:GeminiClient",
+      "type": "class",
+      "name": "GeminiClient",
+      "filePath": "rlm/clients/gemini.py",
+      "lineRange": [
+        17,
+        164
+      ],
+      "summary": "Concrete BaseLM implementation for the Google Gemini API using google-genai SDK with content format conversion, sync/async generation, configurable timeout, and per-model cost tracking.",
+      "tags": [
+        "service",
+        "api-handler",
+        "gemini",
+        "llm-client"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/clients/azure_openai.py",
+      "type": "file",
+      "name": "azure_openai.py",
+      "filePath": "rlm/clients/azure_openai.py",
+      "summary": "Azure OpenAI client implementation providing synchronous and asynchronous chat completion methods with per-model cost tracking and usage summary reporting.",
+      "tags": [
+        "service",
+        "api-handler",
+        "azure",
+        "llm-client",
+        "async"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/clients/azure_openai.py:AzureOpenAIClient",
+      "type": "class",
+      "name": "AzureOpenAIClient",
+      "filePath": "rlm/clients/azure_openai.py",
+      "lineRange": [
+        17,
+        144
+      ],
+      "summary": "Wraps Azure OpenAI sync and async clients, handling credential loading from environment variables, completion calls with message validation, and token usage cost tracking per model.",
+      "tags": [
+        "service",
+        "api-handler",
+        "azure",
+        "llm-client"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/clients/portkey.py",
+      "type": "file",
+      "name": "portkey.py",
+      "filePath": "rlm/clients/portkey.py",
+      "summary": "Portkey AI gateway client providing sync and async completion calls with cost tracking, serving as an alternative LLM routing backend alongside Azure OpenAI.",
+      "tags": [
+        "service",
+        "api-handler",
+        "llm-client",
+        "async"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/clients/portkey.py:PortkeyClient",
+      "type": "class",
+      "name": "PortkeyClient",
+      "filePath": "rlm/clients/portkey.py",
+      "lineRange": [
+        11,
+        94
+      ],
+      "summary": "Wraps Portkey sync and async clients for chat completions with input validation and per-model token usage tracking.",
+      "tags": [
+        "service",
+        "api-handler",
+        "llm-client",
+        "portkey"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/environments/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "rlm/environments/__init__.py",
+      "summary": "Package entry point for execution environments that re-exports core base classes, lazy-loads optional REPL backends (IPython, Modal, Docker, Daytona, Prime, E2B), and provides a factory function to route environment selection by name.",
+      "tags": [
+        "entry-point",
+        "barrel",
+        "factory",
+        "environment"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/environments/__init__.py:get_environment",
+      "type": "function",
+      "name": "get_environment",
+      "filePath": "rlm/environments/__init__.py",
+      "lineRange": [
+        45,
+        82
+      ],
+      "summary": "Factory function that maps an environment name string to the corresponding REPL class, lazy-importing backends with optional dependencies to avoid import errors when extras are not installed.",
+      "tags": [
+        "factory",
+        "environment",
+        "routing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/environments/base_env.py",
+      "type": "file",
+      "name": "base_env.py",
+      "filePath": "rlm/environments/base_env.py",
+      "summary": "Defines the abstract base classes (BaseEnv, IsolatedEnv, NonIsolatedEnv) and mixin protocols (SupportsCustomTools, SupportsPersistence) that all REPL execution environments must implement, along with custom tool parsing and validation utilities.",
+      "tags": [
+        "type-definition",
+        "data-model",
+        "environment",
+        "middleware",
+        "utility"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Uses Python Protocol (PEP 544) for structural subtyping and ABC for the environment hierarchy, enabling both duck-typed and explicit interface checking."
+    },
+    {
+      "id": "class:rlm/environments/base_env.py:BaseEnv",
+      "type": "class",
+      "name": "BaseEnv",
+      "filePath": "rlm/environments/base_env.py",
+      "lineRange": [
+        197,
+        234
+      ],
+      "summary": "Abstract base class defining the core interface for all execution environments with setup, load_context, and execute_code abstract methods.",
+      "tags": [
+        "type-definition",
+        "environment",
+        "abstract"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/environments/base_env.py:IsolatedEnv",
+      "type": "class",
+      "name": "IsolatedEnv",
+      "filePath": "rlm/environments/base_env.py",
+      "lineRange": [
+        237,
+        256
+      ],
+      "summary": "Abstract subclass of BaseEnv for sandboxed execution environments (Docker, Modal, E2B, etc.) that run code in isolated processes or containers.",
+      "tags": [
+        "type-definition",
+        "environment",
+        "abstract",
+        "isolation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:rlm/environments/base_env.py:NonIsolatedEnv",
+      "type": "class",
+      "name": "NonIsolatedEnv",
+      "filePath": "rlm/environments/base_env.py",
+      "lineRange": [
+        259,
+        279
+      ],
+      "summary": "Abstract subclass of BaseEnv for in-process execution environments (LocalREPL, IPythonREPL) that share the host Python process.",
+      "tags": [
+        "type-definition",
+        "environment",
+        "abstract"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:rlm/environments/base_env.py:SupportsPersistence",
+      "type": "class",
+      "name": "SupportsPersistence",
+      "filePath": "rlm/environments/base_env.py",
+      "lineRange": [
+        283,
+        388
+      ],
+      "summary": "Protocol mixin providing context and history persistence methods (add_context, add_history, get_context_count, get_history_count) for environments that support stateful execution across iterations.",
+      "tags": [
+        "type-definition",
+        "middleware",
+        "persistence"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/environments/base_env.py:SupportsCustomTools",
+      "type": "class",
+      "name": "SupportsCustomTools",
+      "filePath": "rlm/environments/base_env.py",
+      "lineRange": [
+        152,
+        194
+      ],
+      "summary": "Protocol mixin declaring the custom_tools property for environments that allow injecting user-defined callables and constants into the REPL namespace.",
+      "tags": [
+        "type-definition",
+        "middleware",
+        "custom-tools"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:rlm/environments/base_env.py:format_tools_for_prompt",
+      "type": "function",
+      "name": "format_tools_for_prompt",
+      "filePath": "rlm/environments/base_env.py",
+      "lineRange": [
+        96,
+        127
+      ],
+      "summary": "Formats custom tool definitions into a human-readable string block suitable for embedding in the LLM system prompt, including names, types, and descriptions.",
+      "tags": [
+        "utility",
+        "formatting",
+        "custom-tools"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/environments/base_env.py:validate_custom_tools",
+      "type": "function",
+      "name": "validate_custom_tools",
+      "filePath": "rlm/environments/base_env.py",
+      "lineRange": [
+        130,
+        148
+      ],
+      "summary": "Validates that custom tool names do not conflict with reserved REPL builtins like llm_query, answer, and context.",
+      "tags": [
+        "validation",
+        "custom-tools",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:rlm/environments/base_env.py:parse_tool_entry",
+      "type": "function",
+      "name": "parse_tool_entry",
+      "filePath": "rlm/environments/base_env.py",
+      "lineRange": [
+        41,
+        63
+      ],
+      "summary": "Parses a single custom tool entry (either a raw value or a dict with tool and description keys) into a ToolInfo dataclass.",
+      "tags": [
+        "utility",
+        "parsing",
+        "custom-tools"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:rlm/environments/constants.py",
+      "type": "file",
+      "name": "constants.py",
+      "filePath": "rlm/environments/constants.py",
+      "summary": "Defines default apt and pip package lists (numpy, pandas, scipy, requests, etc.) pre-installed in isolated REPL environments like Modal, Prime, and Docker sandboxes.",
+      "tags": [
+        "configuration",
+        "environment",
+        "constants",
+        "dependencies"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:rlm/environments/local_repl.py",
+      "type": "file",
+      "name": "local_repl.py",
+      "filePath": "rlm/environments/local_repl.py",
+      "summary": "Implements the in-process local Python REPL that executes generated code via exec() with stdout/stderr capture, working directory isolation, custom tool injection, and both single and batched LLM/RLM sub-query support.",
+      "tags": [
+        "environment",
+        "service",
+        "execution",
+        "local",
+        "repl"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Uses Python exec() with separate globals/locals dicts, contextmanager-based stdout capture, and ThreadPoolExecutor for batched recursive sub-calls."
+    },
+    {
+      "id": "class:rlm/environments/local_repl.py:LocalREPL",
+      "type": "class",
+      "name": "LocalREPL",
+      "filePath": "rlm/environments/local_repl.py",
+      "lineRange": [
+        147,
+        611
+      ],
+      "summary": "Non-isolated REPL environment that runs generated Python code in-process with namespace sandboxing, context/history persistence, and LLM/RLM query scaffolding including batched concurrent sub-calls via ThreadPoolExecutor.",
+      "tags": [
+        "environment",
+        "service",
+        "execution",
+        "local"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:rlm/environments/docker_repl.py",
+      "type": "file",
+      "name": "docker_repl.py",
+      "filePath": "rlm/environments/docker_repl.py",
+      "summary": "Docker-based isolated REPL that spawns a container, starts an HTTP proxy server to forward LLM calls from inside the container to the host, and executes base64-encoded Python scripts via docker exec.",
+      "tags": [
+        "environment",
+        "service",
+        "execution",
+        "containerization",
+        "isolation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/environments/docker_repl.py:DockerREPL",
+      "type": "class",
+      "name": "DockerREPL",
+      "filePath": "rlm/environments/docker_repl.py",
+      "lineRange": [
+        187,
+        353
+      ],
+      "summary": "Isolated execution environment running code inside a Docker container with an HTTP proxy server bridging LLM/RLM calls between the container and host process.",
+      "tags": [
+        "environment",
+        "service",
+        "containerization",
+        "isolation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/environments/docker_repl.py:LLMProxyHandler",
+      "type": "class",
+      "name": "LLMProxyHandler",
+      "filePath": "rlm/environments/docker_repl.py",
+      "lineRange": [
+        25,
+        88
+      ],
+      "summary": "HTTP request handler that receives LLM query requests from code running inside a Docker container and forwards them to the host-side LM handler for both single and batched completions.",
+      "tags": [
+        "middleware",
+        "api-handler",
+        "proxy"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/environments/docker_repl.py:_build_exec_script",
+      "type": "function",
+      "name": "_build_exec_script",
+      "filePath": "rlm/environments/docker_repl.py",
+      "lineRange": [
+        91,
+        184
+      ],
+      "summary": "Generates a self-contained Python script (with base64-encoded user code, LLM proxy helpers, and JSON result reporting) for execution inside a Docker container.",
+      "tags": [
+        "utility",
+        "code-generation",
+        "containerization"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:rlm/environments/e2b_repl.py",
+      "type": "file",
+      "name": "e2b_repl.py",
+      "filePath": "rlm/environments/e2b_repl.py",
+      "summary": "E2B (Code Interpreter) sandbox REPL that runs code in an E2B cloud sandbox with a broker-based polling architecture for forwarding LLM requests between the sandbox and host.",
+      "tags": [
+        "environment",
+        "service",
+        "execution",
+        "isolation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/environments/e2b_repl.py:E2BREPL",
+      "type": "class",
+      "name": "E2BREPL",
+      "filePath": "rlm/environments/e2b_repl.py",
+      "lineRange": [
+        261,
+        512
+      ],
+      "summary": "Isolated cloud execution environment using E2B sandboxes with a broker polling thread that relays LLM/RLM calls via HTTP between the sandbox and host process.",
+      "tags": [
+        "environment",
+        "service",
+        "isolation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:rlm/environments/e2b_repl.py:_build_exec_script",
+      "type": "function",
+      "name": "_build_exec_script",
+      "filePath": "rlm/environments/e2b_repl.py",
+      "lineRange": [
+        105,
+        258
+      ],
+      "summary": "Generates a Python script for E2B sandbox execution with a broker-based LLM communication pattern, answer capture, and JSON result serialization.",
+      "tags": [
+        "utility",
+        "code-generation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:rlm/environments/modal_repl.py",
+      "type": "file",
+      "name": "modal_repl.py",
+      "filePath": "rlm/environments/modal_repl.py",
+      "summary": "Modal cloud sandbox REPL that provisions a remote sandbox with configurable image, starts a broker for LLM call proxying via tunnels, and executes code within the Modal sandbox process.",
+      "tags": [
+        "environment",
+        "service",
+        "execution",
+        "isolation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/environments/modal_repl.py:ModalREPL",
+      "type": "class",
+      "name": "ModalREPL",
+      "filePath": "rlm/environments/modal_repl.py",
+      "lineRange": [
+        278,
+        515
+      ],
+      "summary": "Isolated execution environment using Modal cloud sandboxes with tunnel-based broker communication for relaying LLM requests between the sandbox and host.",
+      "tags": [
+        "environment",
+        "service",
+        "isolation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:rlm/environments/modal_repl.py:_build_exec_script",
+      "type": "function",
+      "name": "_build_exec_script",
+      "filePath": "rlm/environments/modal_repl.py",
+      "lineRange": [
+        115,
+        275
+      ],
+      "summary": "Generates a Python execution script for Modal sandboxes with broker-based LLM communication, including support for recursive depth tracking and batched queries.",
+      "tags": [
+        "utility",
+        "code-generation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:rlm/environments/ipython_repl.py",
+      "type": "file",
+      "name": "ipython_repl.py",
+      "filePath": "rlm/environments/ipython_repl.py",
+      "summary": "Feature-rich IPython REPL environment supporting both in-process and subprocess (Jupyter kernel) execution modes, with a socket-based subcall broker for recursive RLM queries, custom tool injection via dill serialization, and per-cell answer capture.",
+      "tags": [
+        "environment",
+        "service",
+        "execution",
+        "repl",
+        "ipython"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Dual-mode architecture: in-process uses InteractiveShell directly (faster, shared GIL), subprocess uses jupyter_client KernelManager with a custom socket-based broker for cross-process LLM call routing."
+    },
+    {
+      "id": "class:rlm/environments/ipython_repl.py:IPythonREPL",
+      "type": "class",
+      "name": "IPythonREPL",
+      "filePath": "rlm/environments/ipython_repl.py",
+      "lineRange": [
+        458,
+        1511
+      ],
+      "summary": "Non-isolated IPython REPL supporting in-process or subprocess kernel execution with thread-safe code execution, context/history persistence, recursive subcall brokering, and timeout-based interruption via SIGALRM.",
+      "tags": [
+        "environment",
+        "service",
+        "execution",
+        "ipython"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/environments/ipython_repl.py:_SubcallBroker",
+      "type": "class",
+      "name": "_SubcallBroker",
+      "filePath": "rlm/environments/ipython_repl.py",
+      "lineRange": [
+        99,
+        299
+      ],
+      "summary": "Socket-based broker server that listens for LLM and subcall requests from a subprocess IPython kernel, dispatches them on the host side (including batched parallel subcalls), and returns results back to the kernel.",
+      "tags": [
+        "middleware",
+        "service",
+        "networking",
+        "broker"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:rlm/environments/ipython_repl.py:_build_kernel_bootstrap",
+      "type": "function",
+      "name": "_build_kernel_bootstrap",
+      "filePath": "rlm/environments/ipython_repl.py",
+      "lineRange": [
+        307,
+        450
+      ],
+      "summary": "Generates the Python bootstrap code injected into a subprocess IPython kernel that defines llm_query, rlm_query, answer dict capture, and SHOW_VARS helpers using socket-based communication back to the host broker.",
+      "tags": [
+        "utility",
+        "code-generation",
+        "ipython",
+        "bootstrap"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:rlm/environments/daytona_repl.py",
+      "type": "file",
+      "name": "daytona_repl.py",
+      "filePath": "rlm/environments/daytona_repl.py",
+      "summary": "Daytona cloud workspace REPL that provisions a sandbox via the Daytona SDK, uploads a broker script, and executes code with HTTP-based LLM call proxying through preview link tunnels.",
+      "tags": [
+        "environment",
+        "service",
+        "execution",
+        "isolation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/environments/daytona_repl.py:DaytonaREPL",
+      "type": "class",
+      "name": "DaytonaREPL",
+      "filePath": "rlm/environments/daytona_repl.py",
+      "lineRange": [
+        366,
+        705
+      ],
+      "summary": "Isolated execution environment using Daytona cloud sandboxes with session-based command execution, file upload, and HTTP broker polling for LLM call relaying.",
+      "tags": [
+        "environment",
+        "service",
+        "isolation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:rlm/environments/daytona_repl.py:_build_exec_script",
+      "type": "function",
+      "name": "_build_exec_script",
+      "filePath": "rlm/environments/daytona_repl.py",
+      "lineRange": [
+        156,
+        363
+      ],
+      "summary": "Generates an execution script for Daytona sandboxes that includes custom tool injection (callables serialized to base64, constants to JSON), broker communication, and result reporting.",
+      "tags": [
+        "utility",
+        "code-generation",
+        "cloud",
+        "custom-tools"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:rlm/environments/prime_repl.py",
+      "type": "file",
+      "name": "prime_repl.py",
+      "filePath": "rlm/environments/prime_repl.py",
+      "summary": "Prime Intellect cloud sandbox REPL that provisions sandboxes via the Prime API, runs a broker script for LLM call proxying through exposed ports, and executes user code via command execution.",
+      "tags": [
+        "environment",
+        "service",
+        "execution",
+        "isolation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/environments/prime_repl.py:PrimeREPL",
+      "type": "class",
+      "name": "PrimeREPL",
+      "filePath": "rlm/environments/prime_repl.py",
+      "lineRange": [
+        277,
+        601
+      ],
+      "summary": "Isolated execution environment using Prime Intellect cloud sandboxes with exposed port broker polling for forwarding LLM/RLM calls between the sandbox and host.",
+      "tags": [
+        "environment",
+        "service",
+        "isolation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:rlm/environments/prime_repl.py:_build_exec_script",
+      "type": "function",
+      "name": "_build_exec_script",
+      "filePath": "rlm/environments/prime_repl.py",
+      "lineRange": [
+        114,
+        274
+      ],
+      "summary": "Generates a Python execution script for Prime sandboxes with broker-based LLM communication and JSON result serialization.",
+      "tags": [
+        "utility",
+        "code-generation",
+        "cloud"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:rlm/logger/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "rlm/logger/__init__.py",
+      "summary": "Package barrel that re-exports RLMLogger and VerbosePrinter from the logger submodules.",
+      "tags": [
+        "entry-point",
+        "barrel",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:rlm/logger/rlm_logger.py",
+      "type": "file",
+      "name": "rlm_logger.py",
+      "filePath": "rlm/logger/rlm_logger.py",
+      "summary": "JSON-lines file logger that records RLM run metadata and per-iteration data (completions, code executions, subcalls) to timestamped log files for trajectory replay and debugging.",
+      "tags": [
+        "logging",
+        "service",
+        "serialization",
+        "debugging"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/logger/rlm_logger.py:RLMLogger",
+      "type": "class",
+      "name": "RLMLogger",
+      "filePath": "rlm/logger/rlm_logger.py",
+      "lineRange": [
+        16,
+        91
+      ],
+      "summary": "File-based logger that writes run metadata and iteration entries to JSON-lines files, with methods for trajectory retrieval and iteration count tracking.",
+      "tags": [
+        "logging",
+        "service",
+        "serialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/logger/verbose.py",
+      "type": "file",
+      "name": "verbose.py",
+      "filePath": "rlm/logger/verbose.py",
+      "summary": "Rich-formatted console printer that renders RLM iteration details (completions, code execution results, subcalls, compaction events, budget warnings, and final summaries) with styled panels, tables, and rules.",
+      "tags": [
+        "logging",
+        "utility",
+        "formatting",
+        "component"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:rlm/logger/verbose.py:VerbosePrinter",
+      "type": "class",
+      "name": "VerbosePrinter",
+      "filePath": "rlm/logger/verbose.py",
+      "lineRange": [
+        55,
+        538
+      ],
+      "summary": "Console output formatter using Rich library components (Panel, Table, Rule, Text) to render detailed RLM execution traces including iterations, completions, code output, subcalls, compaction status, and usage summaries.",
+      "tags": [
+        "logging",
+        "formatting",
+        "component",
+        "rich-ui"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:rlm/utils/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "rlm/utils/__init__.py",
+      "summary": "Empty package initializer for the utils module.",
+      "tags": [
+        "entry-point",
+        "barrel",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:rlm/utils/exceptions.py",
+      "type": "file",
+      "name": "exceptions.py",
+      "filePath": "rlm/utils/exceptions.py",
+      "summary": "Defines custom exception hierarchy for RLM execution limits: BudgetExceededError, TimeoutExceededError, TokenLimitExceededError, ErrorThresholdExceededError, and CancellationError, each carrying relevant metadata like spent amounts and thresholds.",
+      "tags": [
+        "type-definition",
+        "utility",
+        "error-handling",
+        "data-model"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:rlm/utils/exceptions.py:BudgetExceededError",
+      "type": "class",
+      "name": "BudgetExceededError",
+      "filePath": "rlm/utils/exceptions.py",
+      "lineRange": [
+        4,
+        10
+      ],
+      "summary": "Raised when total monetary cost exceeds the configured budget limit.",
+      "tags": [
+        "error-handling",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:rlm/utils/exceptions.py:TokenLimitExceededError",
+      "type": "class",
+      "name": "TokenLimitExceededError",
+      "filePath": "rlm/utils/exceptions.py",
+      "lineRange": [
+        29,
+        44
+      ],
+      "summary": "Raised when token usage exceeds the configured context window or token budget.",
+      "tags": [
+        "error-handling",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:rlm/utils/exceptions.py:ErrorThresholdExceededError",
+      "type": "class",
+      "name": "ErrorThresholdExceededError",
+      "filePath": "rlm/utils/exceptions.py",
+      "lineRange": [
+        47,
+        65
+      ],
+      "summary": "Raised when the number of consecutive errors during execution exceeds the configured threshold.",
+      "tags": [
+        "error-handling",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:rlm/utils/parsing.py",
+      "type": "file",
+      "name": "parsing.py",
+      "filePath": "rlm/utils/parsing.py",
+      "summary": "Text parsing utilities for extracting code blocks from LLM responses, formatting iteration data and REPL execution results into conversation messages, and converting context objects for REPL consumption.",
+      "tags": [
+        "utility",
+        "parsing",
+        "formatting",
+        "serialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/utils/parsing.py:find_code_blocks",
+      "type": "function",
+      "name": "find_code_blocks",
+      "filePath": "rlm/utils/parsing.py",
+      "lineRange": [
+        10,
+        22
+      ],
+      "summary": "Extracts code content from triple-backtick repl blocks in LLM response text using regex.",
+      "tags": [
+        "utility",
+        "parsing",
+        "regex"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:rlm/utils/parsing.py:format_iteration",
+      "type": "function",
+      "name": "format_iteration",
+      "filePath": "rlm/utils/parsing.py",
+      "lineRange": [
+        25,
+        57
+      ],
+      "summary": "Formats a single RLM iteration (completion + execution result + subcalls) into a list of conversation messages with optional character length truncation.",
+      "tags": [
+        "utility",
+        "formatting",
+        "serialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/utils/parsing.py:format_execution_result",
+      "type": "function",
+      "name": "format_execution_result",
+      "filePath": "rlm/utils/parsing.py",
+      "lineRange": [
+        65,
+        95
+      ],
+      "summary": "Formats a REPL execution result (stdout, stderr, local variables) into a structured string for inclusion in the conversation context.",
+      "tags": [
+        "utility",
+        "formatting",
+        "serialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/utils/parsing.py:convert_context_for_repl",
+      "type": "function",
+      "name": "convert_context_for_repl",
+      "filePath": "rlm/utils/parsing.py",
+      "lineRange": [
+        98,
+        122
+      ],
+      "summary": "Converts various context input types (string, dict, list of messages) into a format suitable for loading into the REPL environment.",
+      "tags": [
+        "utility",
+        "parsing",
+        "conversion"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/utils/prompts.py",
+      "type": "file",
+      "name": "prompts.py",
+      "filePath": "rlm/utils/prompts.py",
+      "summary": "Builds the RLM system prompt (describing REPL capabilities, LLM query functions, custom tools, and answer submission rules) and user prompt templates that frame each iteration of the recursive inference loop.",
+      "tags": [
+        "utility",
+        "formatting",
+        "prompts",
+        "configuration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/utils/prompts.py:build_rlm_system_prompt",
+      "type": "function",
+      "name": "build_rlm_system_prompt",
+      "filePath": "rlm/utils/prompts.py",
+      "lineRange": [
+        117,
+        161
+      ],
+      "summary": "Assembles the full system prompt by injecting query metadata (model, budget, context sizes) and custom tool descriptions into the RLM system prompt template.",
+      "tags": [
+        "utility",
+        "formatting",
+        "prompts"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/utils/prompts.py:build_user_prompt",
+      "type": "function",
+      "name": "build_user_prompt",
+      "filePath": "rlm/utils/prompts.py",
+      "lineRange": [
+        168,
+        195
+      ],
+      "summary": "Builds the user-facing prompt for each RLM iteration, including the root query and context/history count indicators.",
+      "tags": [
+        "utility",
+        "formatting",
+        "prompts"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:rlm/utils/rlm_utils.py",
+      "type": "file",
+      "name": "rlm_utils.py",
+      "filePath": "rlm/utils/rlm_utils.py",
+      "summary": "Small utility module providing a function to filter sensitive keys (API keys) from kwargs dictionaries before logging or display.",
+      "tags": [
+        "utility",
+        "security",
+        "filtering"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:rlm/utils/token_utils.py",
+      "type": "file",
+      "name": "token_utils.py",
+      "filePath": "rlm/utils/token_utils.py",
+      "summary": "Token counting and context limit utilities that use tiktoken to count message tokens for OpenAI-compatible models and maintain a mapping of model names to their maximum context window sizes.",
+      "tags": [
+        "utility",
+        "token-counting",
+        "configuration",
+        "validation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/utils/token_utils.py:count_tokens",
+      "type": "function",
+      "name": "count_tokens",
+      "filePath": "rlm/utils/token_utils.py",
+      "lineRange": [
+        125,
+        143
+      ],
+      "summary": "Counts tokens in a message list using tiktoken when available, falling back to a character-based estimation (4 chars per token) for unsupported models.",
+      "tags": [
+        "utility",
+        "token-counting",
+        "validation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:rlm/utils/token_utils.py:get_context_limit",
+      "type": "function",
+      "name": "get_context_limit",
+      "filePath": "rlm/utils/token_utils.py",
+      "lineRange": [
+        70,
+        89
+      ],
+      "summary": "Looks up the maximum context window token count for a given model name, with fuzzy substring matching as fallback.",
+      "tags": [
+        "utility",
+        "token-counting",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:visualizer/components.json",
+      "type": "config",
+      "name": "components.json",
+      "filePath": "visualizer/components.json",
+      "summary": "shadcn/ui component registry configuration specifying the new-york style, Tailwind CSS integration with neutral base color and CSS variables, Lucide icons, and path aliases for the visualizer sub-project.",
+      "tags": [
+        "configuration",
+        "shadcn-ui",
+        "tailwind",
+        "component-registry"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/eslint.config.mjs",
+      "type": "file",
+      "name": "eslint.config.mjs",
+      "filePath": "visualizer/eslint.config.mjs",
+      "summary": "ESLint flat configuration for the Next.js visualizer app, extending the core-web-vitals and TypeScript presets with standard ignore patterns for build artifacts.",
+      "tags": [
+        "configuration",
+        "linting",
+        "eslint",
+        "code-quality"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/next.config.ts",
+      "type": "file",
+      "name": "next.config.ts",
+      "filePath": "visualizer/next.config.ts",
+      "summary": "Minimal Next.js configuration file with an empty config object, serving as a placeholder for future framework-level settings.",
+      "tags": [
+        "configuration",
+        "next-js",
+        "build-system"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:visualizer/package.json",
+      "type": "config",
+      "name": "package.json",
+      "filePath": "visualizer/package.json",
+      "summary": "Package manifest for the RLM visualizer Next.js 16 application, declaring dependencies on React 19, Radix UI primitives, next-themes, react-resizable-panels, and Tailwind CSS 4 for the build pipeline.",
+      "tags": [
+        "configuration",
+        "package-manifest",
+        "dependency-management",
+        "build-system"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/postcss.config.mjs",
+      "type": "file",
+      "name": "postcss.config.mjs",
+      "filePath": "visualizer/postcss.config.mjs",
+      "summary": "PostCSS configuration enabling the Tailwind CSS v4 PostCSS plugin for CSS processing in the visualizer build pipeline.",
+      "tags": [
+        "configuration",
+        "postcss",
+        "tailwind",
+        "build-system"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:visualizer/README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "visualizer/README.md",
+      "summary": "Documentation for the RLM trajectory visualizer sub-project, describing it as a vibe-coded Next.js app with shadcn UI, providing getting-started instructions, learning resources, and Vercel deployment guidance.",
+      "tags": [
+        "documentation",
+        "getting-started",
+        "next-js",
+        "overview"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:visualizer/tsconfig.json",
+      "type": "config",
+      "name": "tsconfig.json",
+      "filePath": "visualizer/tsconfig.json",
+      "summary": "TypeScript compiler configuration for the visualizer, enabling strict mode with ES2017 target, bundler module resolution, the Next.js plugin, and a path alias mapping @/* to src/* for clean imports.",
+      "tags": [
+        "configuration",
+        "typescript",
+        "build-system",
+        "path-aliases"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/app/globals.css",
+      "type": "file",
+      "name": "globals.css",
+      "filePath": "visualizer/src/app/globals.css",
+      "summary": "Global stylesheet importing Tailwind CSS v4 and tw-animate-css, defining a comprehensive design token system with CSS custom properties for light and dark themes covering colors, spacing, radii, and sidebar/chart palette variants.",
+      "tags": [
+        "stylesheet",
+        "design-tokens",
+        "theming",
+        "tailwind"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Uses Tailwind CSS v4 @theme inline directive and @custom-variant for dark mode, with extensive CSS custom property definitions for the shadcn design system."
+    },
+    {
+      "id": "file:visualizer/src/app/layout.tsx",
+      "type": "file",
+      "name": "layout.tsx",
+      "filePath": "visualizer/src/app/layout.tsx",
+      "summary": "Root layout for the Next.js app that loads Geist Sans and Mono fonts, wraps the application in a ThemeProvider defaulting to dark mode, and provides a TooltipProvider context to all pages.",
+      "tags": [
+        "entry-point",
+        "layout",
+        "component",
+        "theming"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/app/page.tsx",
+      "type": "file",
+      "name": "page.tsx",
+      "filePath": "visualizer/src/app/page.tsx",
+      "summary": "Root page component that simply renders the Dashboard component as the application's main entry view.",
+      "tags": [
+        "entry-point",
+        "component",
+        "routing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/components/Dashboard.tsx",
+      "type": "file",
+      "name": "Dashboard.tsx",
+      "filePath": "visualizer/src/components/Dashboard.tsx",
+      "summary": "Main dashboard component that manages log file state, fetches demo RLM trajectory logs from the API on mount, provides a file upload interface, displays a selectable list of demo and uploaded logs, and transitions to the LogViewer when a log is selected.",
+      "tags": [
+        "component",
+        "entry-point",
+        "state-management",
+        "data-fetching"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:visualizer/src/components/Dashboard.tsx:Dashboard",
+      "type": "function",
+      "name": "Dashboard",
+      "filePath": "visualizer/src/components/Dashboard.tsx",
+      "lineRange": [
+        22,
+        311
+      ],
+      "summary": "Primary React component orchestrating the landing view with demo log loading via API, file upload handling, log selection, and conditional rendering of either the log list or the detailed LogViewer.",
+      "tags": [
+        "component",
+        "state-management",
+        "data-fetching",
+        "entry-point"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:visualizer/src/components/LogViewer.tsx",
+      "type": "file",
+      "name": "LogViewer.tsx",
+      "filePath": "visualizer/src/components/LogViewer.tsx",
+      "summary": "Log viewer component that displays a parsed RLM log file in a resizable three-panel layout (timeline, trajectory, execution), with keyboard navigation between iterations and summary stats in the header.",
+      "tags": [
+        "component",
+        "layout",
+        "keyboard-navigation",
+        "data-display"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/components/LogViewer.tsx:LogViewer",
+      "type": "function",
+      "name": "LogViewer",
+      "filePath": "visualizer/src/components/LogViewer.tsx",
+      "lineRange": [
+        20,
+        196
+      ],
+      "summary": "React component rendering a resizable three-panel view of an RLM log file with iteration navigation via arrow keys, stats summary in the header, and back-to-dashboard escape support.",
+      "tags": [
+        "component",
+        "layout",
+        "keyboard-navigation",
+        "resizable-panels"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/FileUploader.tsx",
+      "type": "file",
+      "name": "FileUploader.tsx",
+      "filePath": "visualizer/src/components/FileUploader.tsx",
+      "summary": "Drag-and-drop file uploader component that accepts .jsonl log files, reads their text content, and invokes a callback with the filename and raw content for log parsing.",
+      "tags": [
+        "component",
+        "file-upload",
+        "drag-and-drop",
+        "utility"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/components/FileUploader.tsx:FileUploader",
+      "type": "function",
+      "name": "FileUploader",
+      "filePath": "visualizer/src/components/FileUploader.tsx",
+      "lineRange": [
+        12,
+        114
+      ],
+      "summary": "React component providing a drag-and-drop zone and click-to-browse input for loading .jsonl RLM log files, with loading and dragging visual states.",
+      "tags": [
+        "component",
+        "file-upload",
+        "drag-and-drop"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/ExecutionPanel.tsx",
+      "type": "file",
+      "name": "ExecutionPanel.tsx",
+      "filePath": "visualizer/src/components/ExecutionPanel.tsx",
+      "summary": "Execution detail panel that renders a selected iteration's code blocks, stdout/stderr output, local variable snapshots, and nested RLM sub-calls in a tabbed interface with timing metrics.",
+      "tags": [
+        "component",
+        "data-display",
+        "execution-detail",
+        "code-viewer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/components/ExecutionPanel.tsx:ExecutionPanel",
+      "type": "function",
+      "name": "ExecutionPanel",
+      "filePath": "visualizer/src/components/ExecutionPanel.tsx",
+      "lineRange": [
+        14,
+        189
+      ],
+      "summary": "Renders a single RLM iteration's execution details including code blocks with syntax highlighting, stdout/stderr tabs, local variable state, and recursive llm_query sub-calls with prompt and response summaries.",
+      "tags": [
+        "component",
+        "data-display",
+        "execution-detail"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/TrajectoryPanel.tsx",
+      "type": "file",
+      "name": "TrajectoryPanel.tsx",
+      "filePath": "visualizer/src/components/TrajectoryPanel.tsx",
+      "summary": "Trajectory panel component that displays an iteration's prompt messages (system/user/assistant roles) and the LLM response, with role-specific icons, color-coded badges, and final answer extraction.",
+      "tags": [
+        "component",
+        "data-display",
+        "trajectory-viewer",
+        "message-rendering"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:visualizer/src/components/TrajectoryPanel.tsx:TrajectoryPanel",
+      "type": "function",
+      "name": "TrajectoryPanel",
+      "filePath": "visualizer/src/components/TrajectoryPanel.tsx",
+      "lineRange": [
+        69,
+        211
+      ],
+      "summary": "Renders the prompt-response trajectory for a selected RLM iteration, showing each prompt message with role-specific styling and the model's response with character count and optional final answer highlight.",
+      "tags": [
+        "component",
+        "data-display",
+        "trajectory-viewer"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:visualizer/src/components/TrajectoryPanel.tsx:RoleIcon",
+      "type": "function",
+      "name": "RoleIcon",
+      "filePath": "visualizer/src/components/TrajectoryPanel.tsx",
+      "lineRange": [
+        23,
+        51
+      ],
+      "summary": "Renders a gradient-colored icon representing the message role (system gear, user icon, or assistant sparkle) in the trajectory view.",
+      "tags": [
+        "component",
+        "utility",
+        "icon-rendering"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/components/IterationTimeline.tsx",
+      "type": "file",
+      "name": "IterationTimeline.tsx",
+      "filePath": "visualizer/src/components/IterationTimeline.tsx",
+      "summary": "Horizontal scrollable timeline component showing all iterations as selectable cards with stats (code blocks, sub-calls, execution time, token estimates, errors) and auto-scroll to the currently selected item.",
+      "tags": [
+        "component",
+        "navigation",
+        "timeline",
+        "data-display"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/components/IterationTimeline.tsx:IterationTimeline",
+      "type": "function",
+      "name": "IterationTimeline",
+      "filePath": "visualizer/src/components/IterationTimeline.tsx",
+      "lineRange": [
+        49,
+        186
+      ],
+      "summary": "Renders a horizontal timeline of iteration cards with auto-scroll to selection, displaying per-iteration stats (execution time, token counts, sub-calls, error/final indicators) and response preview text.",
+      "tags": [
+        "component",
+        "navigation",
+        "timeline"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/components/IterationTimeline.tsx:getIterationStats",
+      "type": "function",
+      "name": "getIterationStats",
+      "filePath": "visualizer/src/components/IterationTimeline.tsx",
+      "lineRange": [
+        15,
+        47
+      ],
+      "summary": "Computes summary statistics for an RLM iteration including code block count, sub-call count, execution time, error presence, final answer flag, and rough token estimates from prompt/response text length.",
+      "tags": [
+        "utility",
+        "data-processing",
+        "statistics"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/CodeBlock.tsx",
+      "type": "file",
+      "name": "CodeBlock.tsx",
+      "filePath": "visualizer/src/components/CodeBlock.tsx",
+      "summary": "Collapsible code block component that displays a single RLM code execution with syntax-highlighted source, stdout/stderr output, local variable snapshots, and nested RLM sub-call details.",
+      "tags": [
+        "component",
+        "code-viewer",
+        "collapsible",
+        "data-display"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/components/CodeBlock.tsx:CodeBlock",
+      "type": "function",
+      "name": "CodeBlock",
+      "filePath": "visualizer/src/components/CodeBlock.tsx",
+      "lineRange": [
+        17,
+        185
+      ],
+      "summary": "Renders a collapsible card for a single code block execution showing the syntax-highlighted Python code, execution time, stdout/stderr, local variables, and any nested RLM sub-calls with their prompts and responses.",
+      "tags": [
+        "component",
+        "code-viewer",
+        "collapsible"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/CodeWithLineNumbers.tsx",
+      "type": "file",
+      "name": "CodeWithLineNumbers.tsx",
+      "filePath": "visualizer/src/components/CodeWithLineNumbers.tsx",
+      "summary": "Wrapper component that pairs SyntaxHighlight output with a line number gutter, supporting configurable start line offset and auto-sized line number width.",
+      "tags": [
+        "component",
+        "code-viewer",
+        "utility",
+        "line-numbers"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:visualizer/src/components/CodeWithLineNumbers.tsx:CodeWithLineNumbers",
+      "type": "function",
+      "name": "CodeWithLineNumbers",
+      "filePath": "visualizer/src/components/CodeWithLineNumbers.tsx",
+      "lineRange": [
+        11,
+        40
+      ],
+      "summary": "Renders a side-by-side view of line numbers and syntax-highlighted code, computing the gutter width from the total line count and supporting a configurable start line.",
+      "tags": [
+        "component",
+        "code-viewer",
+        "line-numbers"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/components/SyntaxHighlight.tsx",
+      "type": "file",
+      "name": "SyntaxHighlight.tsx",
+      "filePath": "visualizer/src/components/SyntaxHighlight.tsx",
+      "summary": "Custom Python syntax highlighter that tokenizes code into keywords, builtins, strings, numbers, comments, decorators, function calls, and operators, rendering each as a color-coded span without external parsing libraries.",
+      "tags": [
+        "component",
+        "syntax-highlighting",
+        "utility",
+        "python"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Implements a hand-rolled line-by-line tokenizer for Python syntax using sequential regex matching rather than a grammar-based parser, trading completeness for zero-dependency simplicity."
+    },
+    {
+      "id": "function:visualizer/src/components/SyntaxHighlight.tsx:highlightPython",
+      "type": "function",
+      "name": "highlightPython",
+      "filePath": "visualizer/src/components/SyntaxHighlight.tsx",
+      "lineRange": [
+        11,
+        172
+      ],
+      "summary": "Tokenizes Python source code line-by-line using regex patterns for comments, strings, numbers, keywords, builtins, function calls, decorators, and operators, producing React span elements with appropriate CSS classes for each token category.",
+      "tags": [
+        "utility",
+        "syntax-highlighting",
+        "tokenizer",
+        "python"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:visualizer/src/components/StatsCard.tsx",
+      "type": "file",
+      "name": "StatsCard.tsx",
+      "filePath": "visualizer/src/components/StatsCard.tsx",
+      "summary": "Reusable stats card component that displays a labeled metric with an icon, value, and optional subtext, supporting five color variants (cyan, magenta, yellow, green, red) for visual differentiation.",
+      "tags": [
+        "component",
+        "utility",
+        "data-display",
+        "design-system"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/components/StatsCard.tsx:StatsCard",
+      "type": "function",
+      "name": "StatsCard",
+      "filePath": "visualizer/src/components/StatsCard.tsx",
+      "lineRange": [
+        30,
+        58
+      ],
+      "summary": "Renders a small card displaying a single metric with an icon, numeric value, and optional subtext, styled with one of five color variants for thematic grouping.",
+      "tags": [
+        "component",
+        "utility",
+        "data-display"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/components/AsciiGlobe.tsx",
+      "type": "file",
+      "name": "AsciiGlobe.tsx",
+      "filePath": "visualizer/src/components/AsciiGlobe.tsx",
+      "summary": "Decorative ASCII art component that renders a colorized representation of the RLM architecture diagram (prompt, LM, REPL, sub-calls) with a pulsing animation effect, exported as both full-size and inline variants.",
+      "tags": [
+        "component",
+        "decorative",
+        "ascii-art",
+        "animation"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Uses character-by-character classification (box-drawing, arrows, etc.) to apply distinct CSS color classes across different regions of the ASCII art based on line content."
+    },
+    {
+      "id": "function:visualizer/src/components/AsciiGlobe.tsx:AsciiRLM",
+      "type": "function",
+      "name": "AsciiRLM",
+      "filePath": "visualizer/src/components/AsciiGlobe.tsx",
+      "lineRange": [
+        29,
+        100
+      ],
+      "summary": "Renders the full RLM architecture ASCII art diagram with line-by-line colorization based on character type and context, animated with a subtle pulsing effect on an interval timer.",
+      "tags": [
+        "component",
+        "decorative",
+        "ascii-art",
+        "animation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/ThemeProvider.tsx",
+      "type": "file",
+      "name": "ThemeProvider.tsx",
+      "filePath": "visualizer/src/components/ThemeProvider.tsx",
+      "summary": "Thin wrapper around next-themes' ThemeProvider, re-exporting it as a client component to allow use in the server-rendered layout.",
+      "tags": [
+        "component",
+        "theming",
+        "wrapper",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/components/ThemeToggle.tsx",
+      "type": "file",
+      "name": "ThemeToggle.tsx",
+      "filePath": "visualizer/src/components/ThemeToggle.tsx",
+      "summary": "Theme toggle dropdown component using Radix DropdownMenu that lets users switch between light, dark, and system themes, with custom SVG icons for each option and a mounted guard to prevent hydration mismatch.",
+      "tags": [
+        "component",
+        "theming",
+        "dropdown",
+        "user-interaction"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/components/ThemeToggle.tsx:ThemeToggle",
+      "type": "function",
+      "name": "ThemeToggle",
+      "filePath": "visualizer/src/components/ThemeToggle.tsx",
+      "lineRange": [
+        13,
+        150
+      ],
+      "summary": "Renders a dropdown menu with light, dark, and system theme options, using useTheme from next-themes and deferring render until mounted to avoid server/client hydration mismatch.",
+      "tags": [
+        "component",
+        "theming",
+        "dropdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/accordion.tsx",
+      "type": "file",
+      "name": "accordion.tsx",
+      "filePath": "visualizer/src/components/ui/accordion.tsx",
+      "summary": "Shadcn/Radix-based accordion UI primitive providing collapsible content sections with animated expand/collapse triggers.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "accessibility"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/badge.tsx",
+      "type": "file",
+      "name": "badge.tsx",
+      "filePath": "visualizer/src/components/ui/badge.tsx",
+      "summary": "Badge UI component with variant support (default, secondary, destructive, outline) built using class-variance-authority for consistent styling.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/button.tsx",
+      "type": "file",
+      "name": "button.tsx",
+      "filePath": "visualizer/src/components/ui/button.tsx",
+      "summary": "Button UI component with multiple variants (default, destructive, outline, secondary, ghost, link) and size options, supporting polymorphic rendering via asChild.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "utility"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/card.tsx",
+      "type": "file",
+      "name": "card.tsx",
+      "filePath": "visualizer/src/components/ui/card.tsx",
+      "summary": "Card layout component family providing structured content containers with header, title, description, action, content, and footer sub-components.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "layout"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/collapsible.tsx",
+      "type": "file",
+      "name": "collapsible.tsx",
+      "filePath": "visualizer/src/components/ui/collapsible.tsx",
+      "summary": "Thin wrapper around Radix UI Collapsible primitives providing togglable show/hide content sections.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "accessibility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/dropdown-menu.tsx",
+      "type": "file",
+      "name": "dropdown-menu.tsx",
+      "filePath": "visualizer/src/components/ui/dropdown-menu.tsx",
+      "summary": "Comprehensive dropdown menu component system wrapping Radix UI primitives with 15 sub-components including items, checkboxes, radio groups, labels, separators, and nested sub-menus.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "accessibility",
+        "navigation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/resizable.tsx",
+      "type": "file",
+      "name": "resizable.tsx",
+      "filePath": "visualizer/src/components/ui/resizable.tsx",
+      "summary": "Resizable panel layout components wrapping react-resizable-panels, providing panel groups, panels, and drag handles with optional visual grip indicators.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "layout",
+        "shadcn"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/scroll-area.tsx",
+      "type": "file",
+      "name": "scroll-area.tsx",
+      "filePath": "visualizer/src/components/ui/scroll-area.tsx",
+      "summary": "Custom scroll area components wrapping Radix UI ScrollArea primitives, providing styled scrollbars with vertical and horizontal orientation support.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "layout"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/separator.tsx",
+      "type": "file",
+      "name": "separator.tsx",
+      "filePath": "visualizer/src/components/ui/separator.tsx",
+      "summary": "Visual separator component wrapping Radix UI Separator with horizontal and vertical orientation and decorative mode support.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "layout"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/tabs.tsx",
+      "type": "file",
+      "name": "tabs.tsx",
+      "filePath": "visualizer/src/components/ui/tabs.tsx",
+      "summary": "Tab navigation component set wrapping Radix UI Tabs with styled list, trigger, and content sub-components for switching between content panels.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "navigation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/components/ui/tooltip.tsx",
+      "type": "file",
+      "name": "tooltip.tsx",
+      "filePath": "visualizer/src/components/ui/tooltip.tsx",
+      "summary": "Tooltip component set wrapping Radix UI Tooltip primitives with provider, trigger, and animated content sub-components for hover information display.",
+      "tags": [
+        "component",
+        "ui-primitive",
+        "shadcn",
+        "accessibility"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:visualizer/src/lib/parse-logs.ts",
+      "type": "file",
+      "name": "parse-logs.ts",
+      "filePath": "visualizer/src/lib/parse-logs.ts",
+      "summary": "Core log parsing library that deserializes JSONL-formatted RLM execution logs into structured iteration data, extracting config metadata, context questions, execution metrics, and final answers.",
+      "tags": [
+        "utility",
+        "data-model",
+        "serialization",
+        "service"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/lib/parse-logs.ts:parseJSONL",
+      "type": "function",
+      "name": "parseJSONL",
+      "filePath": "visualizer/src/lib/parse-logs.ts",
+      "lineRange": [
+        37,
+        68
+      ],
+      "summary": "Parses raw JSONL content string into structured iteration and config objects, handling metadata entries separately from iteration entries with error recovery per line.",
+      "tags": [
+        "utility",
+        "serialization",
+        "parsing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/lib/parse-logs.ts:extractContextQuestion",
+      "type": "function",
+      "name": "extractContextQuestion",
+      "filePath": "visualizer/src/lib/parse-logs.ts",
+      "lineRange": [
+        70,
+        119
+      ],
+      "summary": "Extracts the user's original question from RLM iteration prompts using multiple heuristic strategies - quoted query matching, user message scanning, system prompt inspection, and code block context fallback.",
+      "tags": [
+        "utility",
+        "parsing",
+        "heuristic"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:visualizer/src/lib/parse-logs.ts:computeMetadata",
+      "type": "function",
+      "name": "computeMetadata",
+      "filePath": "visualizer/src/lib/parse-logs.ts",
+      "lineRange": [
+        121,
+        167
+      ],
+      "summary": "Aggregates execution statistics across all iterations including total code blocks, sub-LM calls, execution time, error detection, and final answer extraction.",
+      "tags": [
+        "utility",
+        "data-model",
+        "aggregation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/lib/parse-logs.ts:parseLogFile",
+      "type": "function",
+      "name": "parseLogFile",
+      "filePath": "visualizer/src/lib/parse-logs.ts",
+      "lineRange": [
+        169,
+        180
+      ],
+      "summary": "Top-level entry point that orchestrates JSONL parsing and metadata computation to produce a complete RLMLogFile structure from raw file content.",
+      "tags": [
+        "utility",
+        "entry-point",
+        "serialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:visualizer/src/lib/parse-logs.ts:extractContextVariable",
+      "type": "function",
+      "name": "extractContextVariable",
+      "filePath": "visualizer/src/lib/parse-logs.ts",
+      "lineRange": [
+        4,
+        16
+      ],
+      "summary": "Searches through iteration code block results to find and return the context variable string stored in REPL locals.",
+      "tags": [
+        "utility",
+        "parsing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/lib/types.ts",
+      "type": "file",
+      "name": "types.ts",
+      "filePath": "visualizer/src/lib/types.ts",
+      "summary": "Core type definitions for the RLM visualizer defining the data model for log files, iterations, code blocks, REPL results, chat completions, config metadata, and log metadata interfaces.",
+      "tags": [
+        "type-definition",
+        "data-model",
+        "utility"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:visualizer/src/lib/types.ts:extractFinalAnswer",
+      "type": "function",
+      "name": "extractFinalAnswer",
+      "filePath": "visualizer/src/lib/types.ts",
+      "lineRange": [
+        65,
+        71
+      ],
+      "summary": "Normalizes the final_answer field which can be a plain string or a [key, value] tuple, always returning the answer string or null.",
+      "tags": [
+        "utility",
+        "data-model",
+        "validation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:visualizer/src/lib/utils.ts",
+      "type": "file",
+      "name": "utils.ts",
+      "filePath": "visualizer/src/lib/utils.ts",
+      "summary": "Tailwind CSS class name utility combining clsx conditional class joining with tailwind-merge conflict resolution, used across all UI components.",
+      "tags": [
+        "utility",
+        "styling",
+        "tailwind"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:ModelUsageSummary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:UsageSummary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:RLMChatCompletion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:REPLResult",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:RLMIteration",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:RLMMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:QueryMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:ModelUsageSummary",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:UsageSummary",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:RLMChatCompletion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:REPLResult",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:RLMIteration",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:RLMMetadata",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/types.py",
+      "target": "class:rlm/core/types.py:QueryMetadata",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/rlm.py",
+      "target": "class:rlm/core/rlm.py:RLM",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/rlm.py",
+      "target": "class:rlm/core/rlm.py:RLM",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/lm_handler.py",
+      "target": "class:rlm/core/lm_handler.py:LMRequestHandler",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/lm_handler.py",
+      "target": "class:rlm/core/lm_handler.py:LMHandler",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/lm_handler.py",
+      "target": "class:rlm/core/lm_handler.py:LMRequestHandler",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/lm_handler.py",
+      "target": "class:rlm/core/lm_handler.py:LMHandler",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "class:rlm/core/comms_utils.py:LMRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "class:rlm/core/comms_utils.py:LMResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:socket_send",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:socket_recv",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:socket_request",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:send_lm_request",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:send_lm_request_batched",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "class:rlm/core/comms_utils.py:LMRequest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "class:rlm/core/comms_utils.py:LMResponse",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:socket_send",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:socket_recv",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:socket_request",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:send_lm_request",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "function:rlm/core/comms_utils.py:send_lm_request_batched",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/clients/__init__.py",
+      "target": "function:rlm/clients/__init__.py:get_client",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/clients/__init__.py",
+      "target": "function:rlm/clients/__init__.py:get_client",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/clients/base_lm.py",
+      "target": "class:rlm/clients/base_lm.py:BaseLM",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/clients/base_lm.py",
+      "target": "class:rlm/clients/base_lm.py:BaseLM",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/clients/openai.py",
+      "target": "class:rlm/clients/openai.py:OpenAIClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/clients/openai.py",
+      "target": "class:rlm/clients/openai.py:OpenAIClient",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/clients/anthropic.py",
+      "target": "class:rlm/clients/anthropic.py:AnthropicClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/clients/anthropic.py",
+      "target": "class:rlm/clients/anthropic.py:AnthropicClient",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/clients/gemini.py",
+      "target": "class:rlm/clients/gemini.py:GeminiClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/clients/gemini.py",
+      "target": "class:rlm/clients/gemini.py:GeminiClient",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "class:rlm/clients/openai.py:OpenAIClient",
+      "target": "class:rlm/clients/base_lm.py:BaseLM",
+      "type": "inherits",
+      "direction": "forward",
+      "weight": 0.9
+    },
+    {
+      "source": "class:rlm/clients/anthropic.py:AnthropicClient",
+      "target": "class:rlm/clients/base_lm.py:BaseLM",
+      "type": "inherits",
+      "direction": "forward",
+      "weight": 0.9
+    },
+    {
+      "source": "class:rlm/clients/gemini.py:GeminiClient",
+      "target": "class:rlm/clients/base_lm.py:BaseLM",
+      "type": "inherits",
+      "direction": "forward",
+      "weight": 0.9
+    },
+    {
+      "source": "file:rlm/__init__.py",
+      "target": "file:rlm/core/rlm.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/core/rlm.py",
+      "target": "file:rlm/clients/__init__.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/core/rlm.py",
+      "target": "file:rlm/core/lm_handler.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/core/rlm.py",
+      "target": "file:rlm/core/types.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/core/lm_handler.py",
+      "target": "file:rlm/core/comms_utils.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/core/lm_handler.py",
+      "target": "file:rlm/core/types.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/core/comms_utils.py",
+      "target": "file:rlm/core/types.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/clients/__init__.py",
+      "target": "file:rlm/clients/base_lm.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/clients/__init__.py",
+      "target": "file:rlm/clients/openai.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/clients/__init__.py",
+      "target": "file:rlm/clients/anthropic.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/clients/__init__.py",
+      "target": "file:rlm/clients/gemini.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/clients/__init__.py",
+      "target": "file:rlm/core/types.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:rlm/clients/base_lm.py",
+      "target": "file:rlm/core/types.py",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:pyproject.toml",
+      "target": "file:rlm/__init__.py",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:.pre-commit-config.yaml",
+      "target": "config:pyproject.toml",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "file:rlm/__init__.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:AGENTS.md",
+      "target": "file:rlm/core/rlm.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:AGENTS.md",
+      "target": "file:rlm/clients/__init__.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:AGENTS.md",
+      "target": "file:rlm/core/comms_utils.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/workflows/README.md",
+      "target": "pipeline:.github/workflows/style.yml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/workflows/README.md",
+      "target": "pipeline:.github/workflows/test.yml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "pipeline:.github/workflows/style.yml",
+      "target": "file:rlm/__init__.py",
+      "type": "triggers",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "pipeline:.github/workflows/test.yml",
+      "target": "file:rlm/__init__.py",
+      "type": "triggers",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "pipeline:.github/workflows/publish.yml",
+      "target": "config:pyproject.toml",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "pipeline:.github/workflows/docs.yml",
+      "target": "document:README.md",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "function:rlm/core/comms_utils.py:socket_request",
+      "target": "function:rlm/core/comms_utils.py:socket_send",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:rlm/core/comms_utils.py:socket_request",
+      "target": "function:rlm/core/comms_utils.py:socket_recv",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:rlm/core/comms_utils.py:send_lm_request",
+      "target": "function:rlm/core/comms_utils.py:socket_request",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:rlm/core/comms_utils.py:send_lm_request_batched",
+      "target": "function:rlm/core/comms_utils.py:socket_request",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/clients/azure_openai.py",
+      "target": "class:rlm/clients/azure_openai.py:AzureOpenAIClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/clients/azure_openai.py",
+      "target": "class:rlm/clients/azure_openai.py:AzureOpenAIClient",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/clients/portkey.py",
+      "target": "class:rlm/clients/portkey.py:PortkeyClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/clients/portkey.py",
+      "target": "class:rlm/clients/portkey.py:PortkeyClient",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/__init__.py",
+      "target": "function:rlm/environments/__init__.py:get_environment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/__init__.py",
+      "target": "function:rlm/environments/__init__.py:get_environment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:BaseEnv",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:BaseEnv",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:IsolatedEnv",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:IsolatedEnv",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:NonIsolatedEnv",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:NonIsolatedEnv",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:SupportsPersistence",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:SupportsPersistence",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:SupportsCustomTools",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "class:rlm/environments/base_env.py:SupportsCustomTools",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "function:rlm/environments/base_env.py:format_tools_for_prompt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "function:rlm/environments/base_env.py:format_tools_for_prompt",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "function:rlm/environments/base_env.py:validate_custom_tools",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "function:rlm/environments/base_env.py:validate_custom_tools",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "function:rlm/environments/base_env.py:parse_tool_entry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/base_env.py",
+      "target": "function:rlm/environments/base_env.py:parse_tool_entry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "class:rlm/environments/base_env.py:IsolatedEnv",
+      "target": "class:rlm/environments/base_env.py:BaseEnv",
+      "type": "inherits",
+      "direction": "forward",
+      "weight": 0.9
+    },
+    {
+      "source": "class:rlm/environments/base_env.py:NonIsolatedEnv",
+      "target": "class:rlm/environments/base_env.py:BaseEnv",
+      "type": "inherits",
+      "direction": "forward",
+      "weight": 0.9
+    },
+    {
+      "source": "file:rlm/environments/local_repl.py",
+      "target": "class:rlm/environments/local_repl.py:LocalREPL",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/local_repl.py",
+      "target": "class:rlm/environments/local_repl.py:LocalREPL",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/docker_repl.py",
+      "target": "class:rlm/environments/docker_repl.py:DockerREPL",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/docker_repl.py",
+      "target": "class:rlm/environments/docker_repl.py:DockerREPL",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/docker_repl.py",
+      "target": "class:rlm/environments/docker_repl.py:LLMProxyHandler",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/docker_repl.py",
+      "target": "class:rlm/environments/docker_repl.py:LLMProxyHandler",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/docker_repl.py",
+      "target": "function:rlm/environments/docker_repl.py:_build_exec_script",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/e2b_repl.py",
+      "target": "class:rlm/environments/e2b_repl.py:E2BREPL",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/e2b_repl.py",
+      "target": "class:rlm/environments/e2b_repl.py:E2BREPL",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/e2b_repl.py",
+      "target": "function:rlm/environments/e2b_repl.py:_build_exec_script",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/modal_repl.py",
+      "target": "class:rlm/environments/modal_repl.py:ModalREPL",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/modal_repl.py",
+      "target": "class:rlm/environments/modal_repl.py:ModalREPL",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/modal_repl.py",
+      "target": "function:rlm/environments/modal_repl.py:_build_exec_script",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/ipython_repl.py",
+      "target": "class:rlm/environments/ipython_repl.py:IPythonREPL",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/ipython_repl.py",
+      "target": "class:rlm/environments/ipython_repl.py:IPythonREPL",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/ipython_repl.py",
+      "target": "class:rlm/environments/ipython_repl.py:_SubcallBroker",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/ipython_repl.py",
+      "target": "function:rlm/environments/ipython_repl.py:_build_kernel_bootstrap",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/daytona_repl.py",
+      "target": "class:rlm/environments/daytona_repl.py:DaytonaREPL",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/daytona_repl.py",
+      "target": "class:rlm/environments/daytona_repl.py:DaytonaREPL",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/daytona_repl.py",
+      "target": "function:rlm/environments/daytona_repl.py:_build_exec_script",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/prime_repl.py",
+      "target": "class:rlm/environments/prime_repl.py:PrimeREPL",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/environments/prime_repl.py",
+      "target": "class:rlm/environments/prime_repl.py:PrimeREPL",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/environments/prime_repl.py",
+      "target": "function:rlm/environments/prime_repl.py:_build_exec_script",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/logger/rlm_logger.py",
+      "target": "class:rlm/logger/rlm_logger.py:RLMLogger",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/logger/rlm_logger.py",
+      "target": "class:rlm/logger/rlm_logger.py:RLMLogger",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/logger/verbose.py",
+      "target": "class:rlm/logger/verbose.py:VerbosePrinter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/logger/verbose.py",
+      "target": "class:rlm/logger/verbose.py:VerbosePrinter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/exceptions.py",
+      "target": "class:rlm/utils/exceptions.py:BudgetExceededError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/exceptions.py",
+      "target": "class:rlm/utils/exceptions.py:BudgetExceededError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/exceptions.py",
+      "target": "class:rlm/utils/exceptions.py:TokenLimitExceededError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/exceptions.py",
+      "target": "class:rlm/utils/exceptions.py:TokenLimitExceededError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/exceptions.py",
+      "target": "class:rlm/utils/exceptions.py:ErrorThresholdExceededError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/exceptions.py",
+      "target": "class:rlm/utils/exceptions.py:ErrorThresholdExceededError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/parsing.py",
+      "target": "function:rlm/utils/parsing.py:find_code_blocks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/parsing.py",
+      "target": "function:rlm/utils/parsing.py:find_code_blocks",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/parsing.py",
+      "target": "function:rlm/utils/parsing.py:format_iteration",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/parsing.py",
+      "target": "function:rlm/utils/parsing.py:format_iteration",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/parsing.py",
+      "target": "function:rlm/utils/parsing.py:format_execution_result",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/parsing.py",
+      "target": "function:rlm/utils/parsing.py:format_execution_result",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/parsing.py",
+      "target": "function:rlm/utils/parsing.py:convert_context_for_repl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/parsing.py",
+      "target": "function:rlm/utils/parsing.py:convert_context_for_repl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/prompts.py",
+      "target": "function:rlm/utils/prompts.py:build_rlm_system_prompt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/prompts.py",
+      "target": "function:rlm/utils/prompts.py:build_rlm_system_prompt",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/prompts.py",
+      "target": "function:rlm/utils/prompts.py:build_user_prompt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/prompts.py",
+      "target": "function:rlm/utils/prompts.py:build_user_prompt",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/token_utils.py",
+      "target": "function:rlm/utils/token_utils.py:count_tokens",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/token_utils.py",
+      "target": "function:rlm/utils/token_utils.py:count_tokens",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:rlm/utils/token_utils.py",
+      "target": "function:rlm/utils/token_utils.py:get_context_limit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:rlm/utils/token_utils.py",
+      "target": "function:rlm/utils/token_utils.py:get_context_limit",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/Dashboard.tsx",
+      "target": "function:visualizer/src/components/Dashboard.tsx:Dashboard",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/Dashboard.tsx",
+      "target": "function:visualizer/src/components/Dashboard.tsx:Dashboard",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/Dashboard.tsx",
+      "target": "file:visualizer/src/components/AsciiGlobe.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/Dashboard.tsx",
+      "target": "file:visualizer/src/components/FileUploader.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/Dashboard.tsx",
+      "target": "file:visualizer/src/components/LogViewer.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/Dashboard.tsx",
+      "target": "file:visualizer/src/components/ThemeToggle.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/LogViewer.tsx",
+      "target": "function:visualizer/src/components/LogViewer.tsx:LogViewer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/LogViewer.tsx",
+      "target": "function:visualizer/src/components/LogViewer.tsx:LogViewer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/LogViewer.tsx",
+      "target": "file:visualizer/src/components/ExecutionPanel.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/LogViewer.tsx",
+      "target": "file:visualizer/src/components/IterationTimeline.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/LogViewer.tsx",
+      "target": "file:visualizer/src/components/StatsCard.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/LogViewer.tsx",
+      "target": "file:visualizer/src/components/ThemeToggle.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/LogViewer.tsx",
+      "target": "file:visualizer/src/components/TrajectoryPanel.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/FileUploader.tsx",
+      "target": "function:visualizer/src/components/FileUploader.tsx:FileUploader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/FileUploader.tsx",
+      "target": "function:visualizer/src/components/FileUploader.tsx:FileUploader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/ExecutionPanel.tsx",
+      "target": "function:visualizer/src/components/ExecutionPanel.tsx:ExecutionPanel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/ExecutionPanel.tsx",
+      "target": "function:visualizer/src/components/ExecutionPanel.tsx:ExecutionPanel",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/ExecutionPanel.tsx",
+      "target": "file:visualizer/src/components/CodeBlock.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/TrajectoryPanel.tsx",
+      "target": "function:visualizer/src/components/TrajectoryPanel.tsx:TrajectoryPanel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/TrajectoryPanel.tsx",
+      "target": "function:visualizer/src/components/TrajectoryPanel.tsx:TrajectoryPanel",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/TrajectoryPanel.tsx",
+      "target": "function:visualizer/src/components/TrajectoryPanel.tsx:RoleIcon",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/IterationTimeline.tsx",
+      "target": "function:visualizer/src/components/IterationTimeline.tsx:IterationTimeline",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/IterationTimeline.tsx",
+      "target": "function:visualizer/src/components/IterationTimeline.tsx:IterationTimeline",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/IterationTimeline.tsx",
+      "target": "function:visualizer/src/components/IterationTimeline.tsx:getIterationStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/CodeBlock.tsx",
+      "target": "function:visualizer/src/components/CodeBlock.tsx:CodeBlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/CodeBlock.tsx",
+      "target": "function:visualizer/src/components/CodeBlock.tsx:CodeBlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/CodeBlock.tsx",
+      "target": "file:visualizer/src/components/CodeWithLineNumbers.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/CodeWithLineNumbers.tsx",
+      "target": "function:visualizer/src/components/CodeWithLineNumbers.tsx:CodeWithLineNumbers",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/CodeWithLineNumbers.tsx",
+      "target": "function:visualizer/src/components/CodeWithLineNumbers.tsx:CodeWithLineNumbers",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/CodeWithLineNumbers.tsx",
+      "target": "file:visualizer/src/components/SyntaxHighlight.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/components/SyntaxHighlight.tsx",
+      "target": "function:visualizer/src/components/SyntaxHighlight.tsx:highlightPython",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/StatsCard.tsx",
+      "target": "function:visualizer/src/components/StatsCard.tsx:StatsCard",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/StatsCard.tsx",
+      "target": "function:visualizer/src/components/StatsCard.tsx:StatsCard",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/AsciiGlobe.tsx",
+      "target": "function:visualizer/src/components/AsciiGlobe.tsx:AsciiRLM",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/AsciiGlobe.tsx",
+      "target": "function:visualizer/src/components/AsciiGlobe.tsx:AsciiRLM",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/components/ThemeToggle.tsx",
+      "target": "function:visualizer/src/components/ThemeToggle.tsx:ThemeToggle",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/components/ThemeToggle.tsx",
+      "target": "function:visualizer/src/components/ThemeToggle.tsx:ThemeToggle",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "config:visualizer/tsconfig.json",
+      "target": "file:visualizer/src/app/layout.tsx",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:visualizer/package.json",
+      "target": "file:visualizer/src/app/layout.tsx",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "document:visualizer/README.md",
+      "target": "file:visualizer/src/app/page.tsx",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "config:visualizer/components.json",
+      "target": "file:visualizer/src/app/globals.css",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "file:visualizer/src/lib/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:parseJSONL",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:extractContextQuestion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:computeMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:parseLogFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:extractContextVariable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:parseJSONL",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:extractContextQuestion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:computeMetadata",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:parseLogFile",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/lib/parse-logs.ts",
+      "target": "function:visualizer/src/lib/parse-logs.ts:extractContextVariable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:visualizer/src/lib/types.ts",
+      "target": "function:visualizer/src/lib/types.ts:extractFinalAnswer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:visualizer/src/lib/types.ts",
+      "target": "function:visualizer/src/lib/types.ts:extractFinalAnswer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:core-engine",
+      "name": "Core Engine",
+      "description": "Central RLM inference loop, socket-based LM request handling, communication utilities, and core data model types that drive the recursive language model execution",
+      "nodeIds": [
+        "file:rlm/__init__.py",
+        "file:rlm/core/__init__.py",
+        "file:rlm/core/types.py",
+        "file:rlm/core/rlm.py",
+        "file:rlm/core/lm_handler.py",
+        "file:rlm/core/comms_utils.py"
+      ]
+    },
+    {
+      "id": "layer:lm-clients",
+      "name": "LM Clients",
+      "description": "Provider-specific language model API clients (OpenAI, Anthropic, Gemini, Azure, Portkey) with a shared abstract base class and factory for runtime client selection",
+      "nodeIds": [
+        "file:rlm/clients/__init__.py",
+        "file:rlm/clients/base_lm.py",
+        "file:rlm/clients/openai.py",
+        "file:rlm/clients/anthropic.py",
+        "file:rlm/clients/gemini.py",
+        "file:rlm/clients/azure_openai.py",
+        "file:rlm/clients/portkey.py"
+      ]
+    },
+    {
+      "id": "layer:execution-environments",
+      "name": "Execution Environments",
+      "description": "Pluggable code execution REPL backends including local, Docker, E2B, Modal, IPython, Daytona, and Prime Intellect sandboxes used by the inference engine to run generated code",
+      "nodeIds": [
+        "file:rlm/environments/__init__.py",
+        "file:rlm/environments/base_env.py",
+        "file:rlm/environments/constants.py",
+        "file:rlm/environments/local_repl.py",
+        "file:rlm/environments/docker_repl.py",
+        "file:rlm/environments/e2b_repl.py",
+        "file:rlm/environments/modal_repl.py",
+        "file:rlm/environments/ipython_repl.py",
+        "file:rlm/environments/daytona_repl.py",
+        "file:rlm/environments/prime_repl.py"
+      ]
+    },
+    {
+      "id": "layer:python-utilities",
+      "name": "Python Utilities",
+      "description": "Shared cross-cutting concerns for the Python package including JSON-lines logging, rich console output, prompt builders, text parsing, token counting, exception hierarchy, and API key filtering",
+      "nodeIds": [
+        "file:rlm/logger/__init__.py",
+        "file:rlm/logger/rlm_logger.py",
+        "file:rlm/logger/verbose.py",
+        "file:rlm/utils/__init__.py",
+        "file:rlm/utils/exceptions.py",
+        "file:rlm/utils/parsing.py",
+        "file:rlm/utils/prompts.py",
+        "file:rlm/utils/rlm_utils.py",
+        "file:rlm/utils/token_utils.py"
+      ]
+    },
+    {
+      "id": "layer:visualizer-ui",
+      "name": "Visualizer UI",
+      "description": "Next.js log visualization dashboard with React components for viewing RLM execution trajectories, iteration timelines, code output, and statistics using shadcn/ui primitives",
+      "nodeIds": [
+        "file:visualizer/src/app/globals.css",
+        "file:visualizer/src/app/layout.tsx",
+        "file:visualizer/src/app/page.tsx",
+        "file:visualizer/src/components/Dashboard.tsx",
+        "file:visualizer/src/components/LogViewer.tsx",
+        "file:visualizer/src/components/FileUploader.tsx",
+        "file:visualizer/src/components/ExecutionPanel.tsx",
+        "file:visualizer/src/components/TrajectoryPanel.tsx",
+        "file:visualizer/src/components/IterationTimeline.tsx",
+        "file:visualizer/src/components/CodeBlock.tsx",
+        "file:visualizer/src/components/CodeWithLineNumbers.tsx",
+        "file:visualizer/src/components/SyntaxHighlight.tsx",
+        "file:visualizer/src/components/StatsCard.tsx",
+        "file:visualizer/src/components/AsciiGlobe.tsx",
+        "file:visualizer/src/components/ThemeProvider.tsx",
+        "file:visualizer/src/components/ThemeToggle.tsx",
+        "file:visualizer/src/components/ui/accordion.tsx",
+        "file:visualizer/src/components/ui/badge.tsx",
+        "file:visualizer/src/components/ui/button.tsx",
+        "file:visualizer/src/components/ui/card.tsx",
+        "file:visualizer/src/components/ui/collapsible.tsx",
+        "file:visualizer/src/components/ui/dropdown-menu.tsx",
+        "file:visualizer/src/components/ui/resizable.tsx",
+        "file:visualizer/src/components/ui/scroll-area.tsx",
+        "file:visualizer/src/components/ui/separator.tsx",
+        "file:visualizer/src/components/ui/tabs.tsx",
+        "file:visualizer/src/components/ui/tooltip.tsx",
+        "file:visualizer/src/lib/parse-logs.ts",
+        "file:visualizer/src/lib/types.ts",
+        "file:visualizer/src/lib/utils.ts"
+      ]
+    },
+    {
+      "id": "layer:project-config",
+      "name": "Project Configuration",
+      "description": "Build system configs, package manifests, linting rules, and toolchain settings for both the Python rlm package and the Next.js visualizer sub-project",
+      "nodeIds": [
+        "file:.gitattributes",
+        "config:.pre-commit-config.yaml",
+        "config:pyproject.toml",
+        "file:MANIFEST.IN",
+        "file:Makefile",
+        "config:visualizer/components.json",
+        "file:visualizer/eslint.config.mjs",
+        "file:visualizer/next.config.ts",
+        "config:visualizer/package.json",
+        "file:visualizer/postcss.config.mjs",
+        "config:visualizer/tsconfig.json"
+      ]
+    },
+    {
+      "id": "layer:ci-cd-and-docs",
+      "name": "CI/CD and Documentation",
+      "description": "GitHub Actions workflows for testing, style checks, PyPI publishing, and docs deployment alongside project documentation including README, contributor guides, and agent instructions",
+      "nodeIds": [
+        "pipeline:.github/workflows/docs.yml",
+        "pipeline:.github/workflows/publish.yml",
+        "pipeline:.github/workflows/style.yml",
+        "pipeline:.github/workflows/test.yml",
+        "document:.github/workflows/README.md",
+        "document:AGENTS.md",
+        "document:CONTRIBUTING.md",
+        "document:README.md",
+        "document:visualizer/README.md"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Project Overview",
+      "description": "Start with the README to understand what Recursive Language Models (RLMs) are: a task-agnostic inference paradigm that lets language models programmatically examine, decompose, and recursively call themselves over near-infinite length contexts. The key insight is that RLMs replace the standard llm.completion(prompt, model) call with rlm.completion(prompt, model), offloading context as a variable in a REPL environment the LM can interact with. This document maps out the project's architecture and provides the conceptual foundation for everything that follows.",
+      "nodeIds": [
+        "document:README.md"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Package Entry Point",
+      "description": "The rlm/__init__.py file is the public API surface - it re-exports the RLM class from the core module so users can simply write 'from rlm import RLM'. This thin entry point is the highest fan-in node in the codebase, referenced by the README documentation, the pyproject.toml configuration, and the test CI pipeline. Following the dependency from here leads directly into the core engine.",
+      "nodeIds": [
+        "file:rlm/__init__.py",
+        "config:pyproject.toml"
+      ],
+      "languageLesson": "Python packages expose their public API through __init__.py. Re-exporting classes here means consumers import from the package name directly rather than reaching into submodules, keeping the internal structure free to change without breaking callers."
+    },
+    {
+      "order": 3,
+      "title": "Central Inference Engine",
+      "description": "The rlm.py file is the heart of the project - the central RLM inference engine that orchestrates the recursive completion loop. It has the highest fan-out of any node, depending on the client factory, the LM handler, and the core type definitions. This is where the README's promise of 'programmatic examination, decomposition, and recursive self-calls' is implemented. Understanding this file means understanding how an RLM completion request is received, decomposed, dispatched to a REPL environment, and recursively resolved.",
+      "nodeIds": [
+        "file:rlm/core/rlm.py"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "Core Data Models",
+      "description": "The types.py file defines the data model vocabulary used throughout the codebase - the structured representations for completion requests, responses, REPL state, and recursive call metadata. With the second-highest fan-in among code files, these types form the contract between the inference engine (Step 3), the communication layer, and the LM clients. Every component in the system speaks in terms of these shared types.",
+      "nodeIds": [
+        "file:rlm/core/types.py"
+      ],
+      "languageLesson": "Python dataclasses and TypedDict definitions serve as lightweight schema contracts. Unlike Java interfaces, they carry no runtime overhead but provide IDE autocompletion and static type checking via mypy, making them ideal for defining the shapes of data flowing between subsystems."
+    },
+    {
+      "order": 5,
+      "title": "LM Handler and Communication",
+      "description": "The LM handler and communications utilities implement the socket-based messaging layer that connects REPL environments to the inference engine. When an RLM spawns a sub-call from within a REPL, the handler receives that request over a socket, dispatches it to the appropriate LM client, and returns the result. The comms_utils module provides the low-level socket serialization primitives that the handler builds upon. Together they enable the recursive architecture where code running inside a REPL can call back into the LM.",
+      "nodeIds": [
+        "file:rlm/core/lm_handler.py",
+        "file:rlm/core/comms_utils.py"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "LM Client Architecture",
+      "description": "The client layer implements a classic factory pattern: the clients/__init__.py module exposes a get_client() factory function, while base_lm.py defines the abstract base class that all provider-specific clients must implement. This abstraction is what makes the RLM engine provider-agnostic - the core inference loop from Step 3 never knows whether it is talking to OpenAI, Anthropic, or any other LLM provider.",
+      "nodeIds": [
+        "file:rlm/clients/__init__.py",
+        "file:rlm/clients/base_lm.py"
+      ],
+      "languageLesson": "Python abstract base classes (ABCs) with @abstractmethod decorators enforce interface contracts at instantiation time rather than call time. If a subclass forgets to implement a required method, the error surfaces immediately when the object is created, not when the method is eventually called."
+    },
+    {
+      "order": 7,
+      "title": "Provider Client Implementations",
+      "description": "Building on the abstract base from Step 6, these five concrete client implementations each wrap a different LLM provider's API: OpenAI, Anthropic Claude, Google Gemini, Azure OpenAI, and Portkey AI gateway. Each translates the RLM engine's internal completion request format into the provider-specific API calls and normalizes responses back. The breadth of provider support - from direct APIs to gateway proxies like Portkey - reflects the project's goal of being a universal inference wrapper.",
+      "nodeIds": [
+        "file:rlm/clients/openai.py",
+        "file:rlm/clients/anthropic.py",
+        "file:rlm/clients/gemini.py",
+        "file:rlm/clients/azure_openai.py",
+        "file:rlm/clients/portkey.py"
+      ]
+    },
+    {
+      "order": 8,
+      "title": "REPL Environment Architecture",
+      "description": "The environments layer is the other half of RLM's core innovation: REPL sandboxes where the LM's generated code actually executes. Like the client layer, it uses a factory pattern - environments/__init__.py provides get_environment() and base_env.py defines the abstract interface. The constants module specifies default package lists pre-installed in each environment. This is where 'offloading context as a variable in a REPL environment' from the README becomes concrete.",
+      "nodeIds": [
+        "file:rlm/environments/__init__.py",
+        "file:rlm/environments/base_env.py",
+        "file:rlm/environments/constants.py"
+      ]
+    },
+    {
+      "order": 9,
+      "title": "REPL Sandbox Implementations",
+      "description": "Seven concrete REPL implementations provide a spectrum of isolation and deployment options. The local_repl runs in-process via Python exec calls (the default, as noted in the README). Docker_repl provides container isolation. The remaining five - E2B, Modal, IPython/Jupyter, Daytona, and Prime Intellect - offer cloud-hosted sandboxes for production or research workloads. This range means RLMs can run anywhere from a developer's laptop to managed cloud infrastructure without changing the inference logic.",
+      "nodeIds": [
+        "file:rlm/environments/local_repl.py",
+        "file:rlm/environments/docker_repl.py",
+        "file:rlm/environments/e2b_repl.py",
+        "file:rlm/environments/modal_repl.py",
+        "file:rlm/environments/ipython_repl.py"
+      ]
+    },
+    {
+      "order": 10,
+      "title": "Prompts and Parsing Utilities",
+      "description": "The utilities layer provides the prompt engineering and output parsing that glue the inference engine to the REPL environments. The prompts module constructs the system and user prompts that instruct the LM how to interact with the REPL - how to examine context, write code, and launch recursive sub-calls. The parsing module extracts structured data (code blocks, function calls, variable references) from the LM's freeform text responses. Token utilities handle counting and context window management to keep recursive calls within provider limits.",
+      "nodeIds": [
+        "file:rlm/utils/prompts.py",
+        "file:rlm/utils/parsing.py",
+        "file:rlm/utils/token_utils.py"
+      ]
+    },
+    {
+      "order": 11,
+      "title": "Logging and Trajectory Tracking",
+      "description": "The logger subsystem captures the full trajectory of an RLM execution - every LM call, REPL interaction, and recursive sub-call - in two complementary formats. The rlm_logger writes structured JSON-lines files suitable for post-hoc analysis and replay, while the verbose module provides rich-formatted console output for real-time debugging. These trajectory logs are exactly what the visualizer application (Steps 12-13) consumes to render interactive execution traces.",
+      "nodeIds": [
+        "file:rlm/logger/__init__.py",
+        "file:rlm/logger/rlm_logger.py",
+        "file:rlm/logger/verbose.py"
+      ]
+    },
+    {
+      "order": 12,
+      "title": "Trajectory Visualizer Application",
+      "description": "The visualizer is a standalone Next.js/React application that renders RLM execution trajectories as interactive dashboards. The Dashboard component is the top-level container, while LogViewer provides a three-panel interface for navigating log data. The parse-logs library and its type definitions handle deserializing the JSON-lines files produced by the logger from Step 11 into structured TypeScript objects the UI components can render.",
+      "nodeIds": [
+        "file:visualizer/src/components/Dashboard.tsx",
+        "file:visualizer/src/components/LogViewer.tsx",
+        "file:visualizer/src/lib/parse-logs.ts",
+        "file:visualizer/src/lib/types.ts"
+      ]
+    },
+    {
+      "order": 13,
+      "title": "CI/CD and Quality Pipeline",
+      "description": "Four GitHub Actions workflows automate the project's quality and release process: the test suite validates correctness, the style workflow enforces code formatting, the docs pipeline deploys documentation, and the publish workflow handles PyPI releases. The test pipeline directly triggers against the package entry point from Step 2, closing the loop between development and deployment. The workflows README documents how these pipelines are configured and when each runs.",
+      "nodeIds": [
+        "pipeline:.github/workflows/test.yml",
+        "pipeline:.github/workflows/style.yml",
+        "pipeline:.github/workflows/publish.yml",
+        "document:.github/workflows/README.md"
+      ]
+    }
+  ]
+}
