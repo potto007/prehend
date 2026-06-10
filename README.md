@@ -2,6 +2,10 @@
 
 **Recursive Language Models with self-reflective program search.**
 
+[![PyPI](https://img.shields.io/pypi/v/lm-repl)](https://pypi.org/project/lm-repl/)
+[![Python](https://img.shields.io/pypi/pyversions/lm-repl)](https://pypi.org/project/lm-repl/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 `lm-repl` (package import: `lm_repl`) is a fork of [`rlms`](https://github.com/alexzhang13/rlm), the MIT OASYS lab's inference engine for [Recursive Language Models](https://arxiv.org/abs/2512.24601) (RLMs). An RLM replaces the canonical `llm.completion(prompt)` call with `rlm.completion(prompt)`: the context is offloaded into a variable inside a REPL environment, and the model writes programs that slice, search, and recursively query that context instead of attending over it directly.
 
 This fork keeps the upstream engine and layers two things on top:
@@ -60,7 +64,7 @@ All `RLM` constructor arguments pass through unchanged, including `child_system_
 
 ## Install
 
-Requires **Python 3.11+**. Note that `pip install rlms` installs the upstream package, not this fork.
+Requires **Python 3.11+**. Available on [PyPI](https://pypi.org/project/lm-repl/); note that `pip install rlms` installs the upstream package, not this fork.
 
 ```bash
 pip install lm-repl
