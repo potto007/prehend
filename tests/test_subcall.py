@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 
 import lm_repl.core.rlm as rlm_module
 from lm_repl import RLM
-from lm_repl.core.types import ModelUsageSummary, UsageSummary
+from lm_repl.core.types import ModelUsageSummary, RLMChatCompletion, UsageSummary
 
 
 def create_mock_lm(responses: list[str], model_name: str = "mock-model") -> Mock:
@@ -426,6 +426,99 @@ class TestSubcallModelOverrideAtLeafDepth:
                 assert backend_kwargs.get("model_name") == "parent-model"
 
             parent.close()
+
+
+def _capture_child_kwargs(parent_kwargs: dict, elapsed: float | None = None) -> dict:
+    """Run _subcall on a parent built with parent_kwargs and return the kwargs
+    the child RLM was constructed with. The child's completion() is stubbed so
+    these tests exercise only propagation, never a child run."""
+    captured = {}
+
+    class CapturingRLM(rlm_module.RLM):
+        def __init__(self, *args, **kwargs):
+            captured.update(kwargs)
+            super().__init__(*args, **kwargs)
+
+        def completion(self, prompt, root_prompt=None):
+            return RLMChatCompletion(
+                root_model="mock-model",
+                prompt=prompt,
+                response="ok",
+                usage_summary=UsageSummary(model_usage_summaries={}),
+                execution_time=0.0,
+            )
+
+    with patch.object(rlm_module, "get_client") as mock_get_client:
+        mock_get_client.return_value = create_mock_lm([final("answer")])
+        parent = RLM(
+            backend="openai",
+            backend_kwargs={"model_name": "parent-model"},
+            max_depth=3,
+            **parent_kwargs,
+        )
+        if elapsed is not None:
+            parent._completion_start_time = time.perf_counter() - elapsed
+        with patch.object(rlm_module, "RLM", CapturingRLM):
+            parent._subcall("test prompt")
+        parent.close()
+    return captured
+
+
+class TestSubcallGuardPropagation:
+    """The runaway-generation guards must follow rlm_query children. On
+    2026-06-11 a whole-question delegation spawned a child whose sub-calls
+    were uncapped and unscheduled because _subcall dropped these settings."""
+
+    def test_child_receives_subcall_max_tokens(self):
+        captured = _capture_child_kwargs({"subcall_max_tokens": 4096})
+        assert captured.get("subcall_max_tokens") == 4096
+
+    def test_child_receives_scheduler_settings(self, tmp_path):
+        captured = _capture_child_kwargs(
+            {
+                "scheduler_max_concurrent": 8,
+                "scheduler_aging_interval": 15.0,
+                "scheduler_coordination_dir": tmp_path,
+            }
+        )
+        assert captured.get("scheduler_max_concurrent") == 8
+        assert captured.get("scheduler_aging_interval") == 15.0
+        assert captured.get("scheduler_coordination_dir") == tmp_path
+
+
+class TestSubcallMaxTimeout:
+    """subcall_max_timeout bounds each rlm_query child's slice of the budget:
+    one delegated child must not be able to starve the parent's whole run."""
+
+    def test_cap_bounds_child_share_of_remaining_budget(self):
+        captured = _capture_child_kwargs(
+            {"max_timeout": 600.0, "subcall_max_timeout": 240.0}, elapsed=10.0
+        )
+        assert captured.get("max_timeout") == 240.0
+
+    def test_remaining_budget_smaller_than_cap_wins(self):
+        captured = _capture_child_kwargs(
+            {"max_timeout": 60.0, "subcall_max_timeout": 240.0}, elapsed=10.0
+        )
+        remaining = captured.get("max_timeout")
+        assert 45.0 < remaining < 55.0, f"Expected ~50s remaining, got {remaining}"
+
+    def test_cap_applies_even_without_parent_deadline(self):
+        captured = _capture_child_kwargs(
+            {"max_timeout": None, "subcall_max_timeout": 240.0}
+        )
+        assert captured.get("max_timeout") == 240.0
+
+    def test_cap_propagates_to_grandchildren(self):
+        captured = _capture_child_kwargs(
+            {"max_timeout": 600.0, "subcall_max_timeout": 240.0}, elapsed=10.0
+        )
+        assert captured.get("subcall_max_timeout") == 240.0
+
+    def test_no_cap_keeps_full_remaining(self):
+        captured = _capture_child_kwargs({"max_timeout": 600.0}, elapsed=10.0)
+        remaining = captured.get("max_timeout")
+        assert 585.0 < remaining < 595.0, f"Expected ~590s remaining, got {remaining}"
 
 
 class TestSubcallCombinedParameters:

@@ -72,6 +72,7 @@ class RLM:
         compaction_threshold_pct: float = 0.85,
         max_concurrent_subcalls: int = 4,
         subcall_max_tokens: int | None = None,
+        subcall_max_timeout: float | None = None,
         scheduler_max_concurrent: int | None = None,
         scheduler_aging_interval: float | None = 30.0,
         scheduler_coordination_dir: str | Path | None = None,
@@ -115,6 +116,12 @@ class RLM:
                 llm_query_batched sub-call. Bounds runaway generations on greedy local models.
                 Root orchestrator calls are not capped. None (default) leaves sub-calls uncapped.
                 Requires a backend whose completion() accepts max_tokens (openai backend does).
+            subcall_max_timeout: Wall-clock cap in seconds on each rlm_query /
+                rlm_query_batched child RLM. The child gets min(parent's remaining
+                max_timeout, this cap), so a single delegated child cannot consume
+                the parent's entire remaining budget. Applies even when max_timeout
+                is None. Inherited by children (bounds grandchildren too). None
+                (default) gives each child the full remaining budget.
             scheduler_max_concurrent: If set, create a priority RequestScheduler shared by all
                 backend clients, capping in-flight requests and enabling context-contention
                 retries at exclusive (p1) priority. Match this to the inference server's slot
@@ -159,6 +166,7 @@ class RLM:
         self.compaction_threshold_pct = compaction_threshold_pct
         self.max_concurrent_subcalls = max_concurrent_subcalls
         self.subcall_max_tokens = subcall_max_tokens
+        self.subcall_max_timeout = subcall_max_timeout
         self.scheduler_max_concurrent = scheduler_max_concurrent
         self.scheduler_aging_interval = scheduler_aging_interval
         self.scheduler_coordination_dir = scheduler_coordination_dir
@@ -798,6 +806,18 @@ class RLM:
                     execution_time=0.0,
                 )
 
+        # Bound each child's slice of the budget: without a cap, one child
+        # handed the whole remaining timeout can starve the parent (a
+        # whole-question rlm_query delegation ate a full 600s ask on
+        # 2026-06-11 before the parent had read a single document).
+        child_timeout = remaining_timeout
+        if self.subcall_max_timeout is not None:
+            child_timeout = (
+                self.subcall_max_timeout
+                if child_timeout is None
+                else min(child_timeout, self.subcall_max_timeout)
+            )
+
         # Resolve the model name for callbacks
         prompt_preview = prompt[:80] if len(prompt) > 80 else prompt
 
@@ -822,9 +842,17 @@ class RLM:
             max_iterations=self.child_max_iterations,
             child_max_iterations=self.child_max_iterations,
             max_budget=remaining_budget,
-            max_timeout=remaining_timeout,
+            max_timeout=child_timeout,
             max_tokens=self.max_tokens,
             max_errors=self.max_errors,
+            # The runaway guards must follow the recursion: a child whose
+            # sub-calls are uncapped and unscheduled defeats the point of
+            # configuring them on the root.
+            subcall_max_tokens=self.subcall_max_tokens,
+            subcall_max_timeout=self.subcall_max_timeout,
+            scheduler_max_concurrent=self.scheduler_max_concurrent,
+            scheduler_aging_interval=self.scheduler_aging_interval,
+            scheduler_coordination_dir=self.scheduler_coordination_dir,
             custom_system_prompt=self.child_system_prompt if self.child_system_prompt else self.system_prompt,
             child_system_prompt=self.child_system_prompt,
             other_backends=self.other_backends,
