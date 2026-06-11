@@ -16,6 +16,7 @@ from lm_repl.clients.coordination import CrossProcessGate
 from lm_repl.clients.scheduler import RequestScheduler
 from lm_repl.core.comms_utils import LMRequest, LMResponse, socket_recv, socket_send
 from lm_repl.core.types import RLMChatCompletion, UsageSummary
+from lm_repl.core.verifier import REJECTION_PREFIX, SubcallReview, SubcallVerifier
 
 
 class LMRequestHandler(StreamRequestHandler):
@@ -62,8 +63,29 @@ class LMRequestHandler(StreamRequestHandler):
             # Client disconnected - silently ignore
             return False
 
+    def _rejection_completion(
+        self, prompt: str | dict, rejection: str, handler: "LMHandler", model: str | None
+    ) -> RLMChatCompletion:
+        """A vetoed call's result: the rejection string IS the response, so the
+        orchestrator reads it in the REPL and adapts on its next iteration."""
+        return RLMChatCompletion(
+            root_model=model or handler.default_client.model_name,
+            prompt=prompt,
+            response=rejection,
+            usage_summary=UsageSummary(model_usage_summaries={}),
+            execution_time=0.0,
+        )
+
     def _handle_single(self, request: LMRequest, handler: "LMHandler") -> LMResponse:
         """Handle a single prompt request."""
+        rejection = handler.review_subcall(request.prompt)
+        if rejection is not None:
+            return LMResponse.success_response(
+                chat_completion=self._rejection_completion(
+                    request.prompt, rejection, handler, request.model
+                )
+            )
+
         client = handler.get_client(request.model, request.depth)
 
         start_time = time.perf_counter()
@@ -89,6 +111,11 @@ class LMRequestHandler(StreamRequestHandler):
         """Handle a batched prompts request using async for concurrency."""
         client = handler.get_client(request.model, request.depth)
 
+        # Review per prompt: vetoed prompts get the rejection string as their
+        # result, the rest execute normally.
+        rejections = [handler.review_subcall(p) for p in request.prompts]
+        to_run = [p for p, r in zip(request.prompts, rejections, strict=True) if r is None]
+
         start_time = time.perf_counter()
 
         subcall_kwargs = handler.subcall_kwargs()
@@ -109,10 +136,11 @@ class LMRequestHandler(StreamRequestHandler):
                     )
 
         async def run_all():
-            tasks = [run_one(prompt) for prompt in request.prompts]
+            tasks = [run_one(prompt) for prompt in to_run]
             return await asyncio.gather(*tasks)
 
-        results = asyncio.run(run_all())
+        executed = iter(asyncio.run(run_all()) if to_run else [])
+        results = [r if r is not None else next(executed) for r in rejections]
         end_time = time.perf_counter()
 
         total_time = end_time - start_time
@@ -160,6 +188,8 @@ class LMHandler:
         scheduler_aging_interval: float | None = 30.0,
         scheduler_coordination_dir: str | Path | None = None,
         subcall_max_tokens: int | None = None,
+        verifier: SubcallVerifier | None = None,
+        verifier_root: str | None = None,
     ):
         self.default_client = client
         self.other_backend_client = other_backend_client
@@ -175,6 +205,12 @@ class LMHandler:
         # Root orchestrator calls (LMHandler.completion) are NOT capped. The
         # client's completion() must accept max_tokens when this is set.
         self.subcall_max_tokens = subcall_max_tokens
+        # Strategy verifier: reviews every llm_query sub-call served over the
+        # socket before it executes. verifier_root is the task the calling RLM
+        # was given, so the whole-task-delegation rule has something to
+        # compare against. None disables review (previous behavior).
+        self.verifier = verifier
+        self.verifier_root = verifier_root
 
         # One scheduler shared by every client that targets the same server, so the
         # priority queue (and p1 exclusivity) spans all traffic. Match
@@ -290,6 +326,22 @@ class LMHandler:
             event = getattr(c, "cancel_event", None)
             if event is not None:
                 event.set()
+
+    def review_subcall(self, prompt: str | dict | None) -> str | None:
+        """Run the strategy verifier over one llm_query sub-call. Returns the
+        rejection string if vetoed, None if approved (or no verifier)."""
+        if self.verifier is None or prompt is None:
+            return None
+        verdict = self.verifier.review(
+            SubcallReview(
+                kind="llm_query",
+                prompt=prompt if isinstance(prompt, str) else str(prompt),
+                root_prompt=self.verifier_root,
+            )
+        )
+        if verdict.approved:
+            return None
+        return REJECTION_PREFIX + verdict.reason
 
     def completion(self, prompt: str, model: str | None = None) -> str:
         """Direct completion call (for main process use)."""

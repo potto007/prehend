@@ -16,6 +16,7 @@ from lm_repl.core.types import (
     RLMMetadata,
     UsageSummary,
 )
+from lm_repl.core.verifier import REJECTION_PREFIX, SubcallReview, SubcallVerifier
 from lm_repl.environments import BaseEnv, SupportsPersistence, get_environment
 from lm_repl.logger import RLMLogger, VerbosePrinter
 from lm_repl.utils.exceptions import (
@@ -73,6 +74,7 @@ class RLM:
         max_concurrent_subcalls: int = 4,
         subcall_max_tokens: int | None = None,
         subcall_max_timeout: float | None = None,
+        subcall_verifier: SubcallVerifier | None = None,
         scheduler_max_concurrent: int | None = None,
         scheduler_aging_interval: float | None = 30.0,
         scheduler_coordination_dir: str | Path | None = None,
@@ -122,6 +124,13 @@ class RLM:
                 the parent's entire remaining budget. Applies even when max_timeout
                 is None. Inherited by children (bounds grandchildren too). None
                 (default) gives each child the full remaining budget.
+            subcall_verifier: Strategy verifier reviewing every llm_query /
+                rlm_query sub-call before it executes (see core/verifier.py).
+                A veto returns "Strategy verifier rejected this call: <reason>"
+                as the call's result instead of executing it. The same instance
+                is shared with recursion children so resubmission memory and
+                veto telemetry span the whole tree. None (default) disables
+                review.
             scheduler_max_concurrent: If set, create a priority RequestScheduler shared by all
                 backend clients, capping in-flight requests and enabling context-contention
                 retries at exclusive (p1) priority. Match this to the inference server's slot
@@ -167,6 +176,10 @@ class RLM:
         self.max_concurrent_subcalls = max_concurrent_subcalls
         self.subcall_max_tokens = subcall_max_tokens
         self.subcall_max_timeout = subcall_max_timeout
+        self.subcall_verifier = subcall_verifier
+        # The task this RLM was given, as seen by the verifier's whole-task
+        # rule. Set per completion(); children record their delegated prompt.
+        self._verifier_root: str | None = None
         self.scheduler_max_concurrent = scheduler_max_concurrent
         self.scheduler_aging_interval = scheduler_aging_interval
         self.scheduler_coordination_dir = scheduler_coordination_dir
@@ -248,6 +261,8 @@ class RLM:
             scheduler_aging_interval=self.scheduler_aging_interval,
             scheduler_coordination_dir=self.scheduler_coordination_dir,
             subcall_max_tokens=self.subcall_max_tokens,
+            verifier=self.subcall_verifier,
+            verifier_root=self._verifier_root,
         )
 
         # Register other clients to be available as sub-call options (by model name).
@@ -351,6 +366,9 @@ class RLM:
         """
         time_start = time.perf_counter()
         self._completion_start_time = time_start
+        # The verifier judges sub-calls against the task this RLM was given:
+        # the root prompt (question) when provided, else the prompt itself.
+        self._verifier_root = root_prompt or (prompt if isinstance(prompt, str) else None)
 
         # Reset tracking state for this completion
         self._consecutive_errors = 0
@@ -745,6 +763,26 @@ class RLM:
             child_backend_kwargs = self.backend_kwargs
         resolved_model = model or (child_backend_kwargs or {}).get("model_name", "unknown")
 
+        # Strategy review before paying for anything - including the leaf
+        # fallback below: a whole-task delegation is wasteful at every depth.
+        if self.subcall_verifier is not None:
+            verdict = self.subcall_verifier.review(
+                SubcallReview(
+                    kind="rlm_query",
+                    prompt=prompt if isinstance(prompt, str) else str(prompt),
+                    root_prompt=self._verifier_root,
+                    depth=self.depth,
+                )
+            )
+            if not verdict.approved:
+                return RLMChatCompletion(
+                    root_model=resolved_model,
+                    prompt=prompt,
+                    response=REJECTION_PREFIX + verdict.reason,
+                    usage_summary=UsageSummary(model_usage_summaries={}),
+                    execution_time=0.0,
+                )
+
         # If we'd hit/exceed the cap, do a normal LM completion (no REPL)
         if next_depth >= self.max_depth:
             # Use other_backend if available, otherwise use main backend
@@ -850,6 +888,9 @@ class RLM:
             # configuring them on the root.
             subcall_max_tokens=self.subcall_max_tokens,
             subcall_max_timeout=self.subcall_max_timeout,
+            # The SAME instance, not a copy: resubmission memory and veto
+            # telemetry must span the recursion tree.
+            subcall_verifier=self.subcall_verifier,
             scheduler_max_concurrent=self.scheduler_max_concurrent,
             scheduler_aging_interval=self.scheduler_aging_interval,
             scheduler_coordination_dir=self.scheduler_coordination_dir,
