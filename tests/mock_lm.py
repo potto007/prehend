@@ -27,18 +27,26 @@ class MockLM(BaseLM):
         self._responses = list(responses) if responses is not None else None
         self._response_fn = response_fn
         self._call_count = 0
-        # Records the max_tokens kwarg of every call (None when not passed),
-        # so tests can assert the subcall_max_tokens plumbing.
+        # Records the max_tokens / extra_body kwargs of every call (None when
+        # not passed) and any set_deadline() calls, so tests can assert the
+        # subcall guard plumbing.
         self.seen_max_tokens: list[int | None] = []
+        self.seen_extra_body: list[dict[str, Any] | None] = []
+        self.seen_deadlines: list[float | None] = []
+
+    def set_deadline(self, max_timeout: float | None) -> None:
+        self.seen_deadlines.append(max_timeout)
 
     def completion(
         self,
         prompt: str | dict[str, Any],
         priority: str | int | None = None,
         max_tokens: int | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> str:
         self._call_count += 1
         self.seen_max_tokens.append(max_tokens)
+        self.seen_extra_body.append(extra_body)
         if self._responses is not None:
             if not self._responses:
                 raise IndexError("MockLM: no more responses in list")
@@ -53,8 +61,9 @@ class MockLM(BaseLM):
         prompt: str | dict[str, Any],
         priority: str | int | None = None,
         max_tokens: int | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> str:
-        return self.completion(prompt, max_tokens=max_tokens)
+        return self.completion(prompt, max_tokens=max_tokens, extra_body=extra_body)
 
     def get_usage_summary(self) -> UsageSummary:
         return UsageSummary(

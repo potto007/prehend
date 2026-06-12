@@ -63,6 +63,29 @@ def _is_context_contention(e: openai.APIStatusError) -> bool:
     )
 
 
+_REASONING_TAIL_CHARS = 1500
+
+
+def _resolve_content(content: str | None, reasoning: str | None) -> str:
+    """Final content for a completion, never a silent empty string.
+
+    Reasoning-parsing servers (llama.cpp --jinja) route thought-channel tokens
+    to reasoning_content; a generation that never exits the channel arrives as
+    content="" (2026-06-12: the kb gemma fine-tune ruminated to the token cap
+    on triage prompts, and the orchestrator retried the resulting empty answer
+    for 20 iterations). Surfacing a tagged reasoning tail gives the caller
+    signal to adapt instead of retrying blind.
+    """
+    if content:
+        return content
+    if reasoning:
+        return (
+            "[reasoning-only response - the model produced no answer, its "
+            "reasoning ended with]\n" + reasoning[-_REASONING_TAIL_CHARS:]
+        )
+    return ""
+
+
 def _merge_consecutive_roles(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Merge adjacent messages that share a role, concatenating their content.
 
@@ -192,6 +215,7 @@ class OpenAIClient(BaseLM):
         response_format: dict[str, Any] | None = None,
         priority: str | int | None = None,
         max_tokens: int | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> str:
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]
@@ -204,9 +228,11 @@ class OpenAIClient(BaseLM):
         if not model:
             raise ValueError("Model name is required for OpenAI client.")
 
-        extra_body = dict(self.default_extra_body)
+        body = dict(self.default_extra_body)
         if self.client.base_url == DEFAULT_PRIME_INTELLECT_BASE_URL:
-            extra_body["usage"] = {"include": True}
+            body["usage"] = {"include": True}
+        if extra_body:
+            body.update(extra_body)
 
         create_kwargs: dict[str, Any] = {}
         if response_format is not None:
@@ -215,7 +241,7 @@ class OpenAIClient(BaseLM):
             create_kwargs["max_tokens"] = max_tokens
 
         p = resolve_priority(priority)
-        return self._do_completion(model, messages, extra_body, create_kwargs, p)
+        return self._do_completion(model, messages, body, create_kwargs, p)
 
     def _do_completion(
         self,
@@ -241,7 +267,10 @@ class OpenAIClient(BaseLM):
                     model=model, messages=messages, extra_body=extra_body, **create_kwargs
                 )
                 self._track_cost(response, model)
-                return response.choices[0].message.content
+                message = response.choices[0].message
+                return _resolve_content(
+                    message.content, getattr(message, "reasoning_content", None)
+                )
             except (openai.BadRequestError, openai.InternalServerError) as e:
                 if (
                     self.scheduler
@@ -272,6 +301,7 @@ class OpenAIClient(BaseLM):
             **create_kwargs,
         )
         parts: list[str] = []
+        reasoning_parts: list[str] = []
         usage = None
         try:
             for chunk in stream:
@@ -280,6 +310,9 @@ class OpenAIClient(BaseLM):
                     delta = chunk.choices[0].delta
                     if delta is not None and delta.content:
                         parts.append(delta.content)
+                    reasoning = getattr(delta, "reasoning_content", None) if delta else None
+                    if reasoning:
+                        reasoning_parts.append(reasoning)
                 if getattr(chunk, "usage", None) is not None:
                     usage = chunk.usage
         finally:
@@ -287,7 +320,7 @@ class OpenAIClient(BaseLM):
             # disconnect and frees the slot instead of generating to completion.
             stream.close()
         self._track_cost(SimpleNamespace(usage=usage), model)
-        return "".join(parts)
+        return _resolve_content("".join(parts), "".join(reasoning_parts))
 
     async def acompletion(
         self,
@@ -295,6 +328,7 @@ class OpenAIClient(BaseLM):
         model: str | None = None,
         priority: str | int | None = None,
         max_tokens: int | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> str:
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]
@@ -307,16 +341,18 @@ class OpenAIClient(BaseLM):
         if not model:
             raise ValueError("Model name is required for OpenAI client.")
 
-        extra_body = dict(self.default_extra_body)
+        body = dict(self.default_extra_body)
         if self.client.base_url == DEFAULT_PRIME_INTELLECT_BASE_URL:
-            extra_body["usage"] = {"include": True}
+            body["usage"] = {"include": True}
+        if extra_body:
+            body.update(extra_body)
 
         create_kwargs: dict[str, Any] = {}
         if max_tokens is not None:
             create_kwargs["max_tokens"] = max_tokens
 
         p = resolve_priority(priority)
-        return await self._ado_completion(model, messages, extra_body, create_kwargs, p)
+        return await self._ado_completion(model, messages, body, create_kwargs, p)
 
     async def _ado_completion(
         self,
@@ -340,7 +376,10 @@ class OpenAIClient(BaseLM):
                     model=model, messages=messages, extra_body=extra_body, **create_kwargs
                 )
                 self._track_cost(response, model)
-                return response.choices[0].message.content
+                message = response.choices[0].message
+                return _resolve_content(
+                    message.content, getattr(message, "reasoning_content", None)
+                )
             except (openai.BadRequestError, openai.InternalServerError) as e:
                 if (
                     self.scheduler
@@ -371,6 +410,7 @@ class OpenAIClient(BaseLM):
             **create_kwargs,
         )
         parts: list[str] = []
+        reasoning_parts: list[str] = []
         usage = None
         try:
             async for chunk in stream:
@@ -379,12 +419,15 @@ class OpenAIClient(BaseLM):
                     delta = chunk.choices[0].delta
                     if delta is not None and delta.content:
                         parts.append(delta.content)
+                    reasoning = getattr(delta, "reasoning_content", None) if delta else None
+                    if reasoning:
+                        reasoning_parts.append(reasoning)
                 if getattr(chunk, "usage", None) is not None:
                     usage = chunk.usage
         finally:
             await stream.close()
         self._track_cost(SimpleNamespace(usage=usage), model)
-        return "".join(parts)
+        return _resolve_content("".join(parts), "".join(reasoning_parts))
 
     def _track_cost(self, response: openai.ChatCompletion, model: str):
         self.model_call_counts[model] += 1

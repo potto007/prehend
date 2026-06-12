@@ -473,6 +473,14 @@ class TestSubcallGuardPropagation:
         captured = _capture_child_kwargs({"subcall_max_tokens": 4096})
         assert captured.get("subcall_max_tokens") == 4096
 
+    def test_child_receives_subcall_extra_body(self):
+        """No-think (or any per-sub-call body extras) must follow children:
+        a child's llm_query calls are as thought-channel-prone as the
+        parent's (2026-06-12 empty-content incident)."""
+        nothink = {"chat_template_kwargs": {"enable_thinking": False}}
+        captured = _capture_child_kwargs({"subcall_extra_body": nothink})
+        assert captured.get("subcall_extra_body") == nothink
+
     def test_child_receives_root_max_tokens(self):
         """A child's root iterations are as runaway-prone as the parent's."""
         captured = _capture_child_kwargs({"root_max_tokens": 8192})

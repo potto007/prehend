@@ -237,3 +237,147 @@ def test_completion_max_tokens_lands_in_request():
     )
     client.completion("hi", max_tokens=777)
     assert client.client.chat.completions.create.call_args.kwargs["max_tokens"] == 777
+
+
+# ---------------------------------------------------------------------------
+# subcall_extra_body plumbing (handler -> client): per-sub-call request body
+# extras, e.g. {"chat_template_kwargs": {"enable_thinking": False}} so gemma
+# sub-calls skip the thought channel (2026-06-12: the kb fine-tune ruminated
+# in-channel to the token cap on triage prompts, returning empty content).
+# ---------------------------------------------------------------------------
+
+_NOTHINK = {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+def test_single_subcall_gets_extra_body():
+    mock = MockLM(responses=["ok"])
+    with LMHandler(client=mock, subcall_extra_body=_NOTHINK) as handler:
+        response = send_lm_request(handler.address, LMRequest(prompt="hi"))
+    assert response.success
+    assert mock.seen_extra_body == [_NOTHINK]
+
+
+def test_batched_subcalls_get_extra_body():
+    mock = MockLM(responses=["a", "b"])
+    with LMHandler(client=mock, subcall_extra_body=_NOTHINK) as handler:
+        responses = send_lm_request_batched(handler.address, ["p1", "p2"])
+    assert all(r.success for r in responses)
+    assert mock.seen_extra_body == [_NOTHINK, _NOTHINK]
+
+
+def test_no_extra_body_by_default():
+    mock = MockLM(responses=["ok"])
+    with LMHandler(client=mock) as handler:
+        response = send_lm_request(handler.address, LMRequest(prompt="hi"))
+    assert response.success
+    assert mock.seen_extra_body == [None]
+
+
+def test_root_completion_not_affected_by_subcall_extra_body():
+    """The root orchestrator keeps thinking ON (gemma reasons better with it);
+    only sub-calls are mechanical."""
+    mock = MockLM(responses=["ok"])
+    handler = LMHandler(client=mock, subcall_extra_body=_NOTHINK)
+    assert handler.completion("root prompt") == "ok"
+    assert mock.seen_extra_body == [None]
+
+
+def test_completion_extra_body_lands_in_request():
+    client = _patched_openai_client()
+    client.client = MagicMock()
+    client.client.chat.completions.create.return_value = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+        usage=_USAGE,
+    )
+    client.completion("hi", extra_body=_NOTHINK)
+    sent = client.client.chat.completions.create.call_args.kwargs["extra_body"]
+    assert sent["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+# ---------------------------------------------------------------------------
+# Reasoning-only responses must not surface as silent empty strings
+# (2026-06-12: jinja routes gemma thought-channel tokens to reasoning_content;
+# a response that never exits the channel arrived as content="" and the
+# orchestrator retried the same call for 20 iterations).
+# ---------------------------------------------------------------------------
+
+
+def test_reasoning_only_response_returns_tagged_fallback():
+    from lm_repl.clients.openai import _resolve_content
+
+    out = _resolve_content("", "step 1... step 2... conclusion: None.")
+    assert out.startswith("[reasoning-only response")
+    assert "conclusion: None." in out
+
+
+def test_reasoning_fallback_is_bounded():
+    from lm_repl.clients.openai import _resolve_content
+
+    out = _resolve_content("", "x" * 100_000)
+    assert len(out) < 3000
+
+
+def test_content_wins_over_reasoning():
+    from lm_repl.clients.openai import _resolve_content
+
+    assert _resolve_content("the answer", "thinking...") == "the answer"
+
+
+def test_empty_content_no_reasoning_stays_empty():
+    from lm_repl.clients.openai import _resolve_content
+
+    assert _resolve_content("", None) == ""
+
+
+def test_nonstream_completion_falls_back_to_reasoning_content():
+    client = _patched_openai_client()
+    client.client = MagicMock()
+    client.client.chat.completions.create.return_value = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content="", reasoning_content="only thoughts here")
+            )
+        ],
+        usage=_USAGE,
+    )
+    out = client.completion("hi")
+    assert "only thoughts here" in out
+    assert out.startswith("[reasoning-only response")
+
+
+# ---------------------------------------------------------------------------
+# Max-depth leaf fallback guards (2026-06-12: the fallback built a fresh
+# client with no cap, no deadline, no scheduler - watched it generate 60K+
+# tokens five minutes past its run's expired deadline).
+# ---------------------------------------------------------------------------
+
+
+def test_leaf_fallback_applies_subcall_guards():
+    import time
+
+    import lm_repl.core.rlm as rlm_module
+    from lm_repl import RLM
+
+    with patch.object(rlm_module, "get_client") as mock_get_client:
+        mock_lm = MockLM(responses=["leaf response"])
+        mock_get_client.return_value = mock_lm
+        parent = RLM(
+            backend="openai",
+            backend_kwargs={"model_name": "m"},
+            depth=1,
+            max_depth=2,
+            subcall_max_tokens=2048,
+            subcall_extra_body=_NOTHINK,
+            max_timeout=600.0,
+        )
+        parent._completion_start_time = time.perf_counter() - 100.0
+        result = parent._subcall("decomposed subtask")
+        parent.close()
+
+    assert result.response == "leaf response"
+    assert mock_lm.seen_max_tokens == [2048]
+    assert mock_lm.seen_extra_body == [_NOTHINK]
+    # Deadline = remaining run budget (600 - ~100 elapsed), not unlimited.
+    assert len(mock_lm.seen_deadlines) == 1
+    assert mock_lm.seen_deadlines[0] is not None
+    assert 400.0 < mock_lm.seen_deadlines[0] <= 510.0

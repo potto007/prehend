@@ -75,6 +75,7 @@ class RLM:
         subcall_max_tokens: int | None = None,
         subcall_max_timeout: float | None = None,
         subcall_verifier: SubcallVerifier | None = None,
+        subcall_extra_body: dict[str, Any] | None = None,
         root_max_tokens: int | None = None,
         scheduler_max_concurrent: int | None = None,
         scheduler_aging_interval: float | None = 30.0,
@@ -132,6 +133,14 @@ class RLM:
                 is shared with recursion children so resubmission memory and
                 veto telemetry span the whole tree. None (default) disables
                 review.
+            subcall_extra_body: Request-body extras merged into every sub-call
+                (llm_query / llm_query_batched / the max-depth rlm_query leaf
+                fallback), e.g. {"chat_template_kwargs": {"enable_thinking":
+                False}} to skip gemma's thought channel on mechanical calls.
+                Root orchestrator calls are unaffected. Inherited by recursion
+                children. Requires a backend whose completion() accepts
+                extra_body (openai backend does). None (default) sends
+                sub-calls unmodified.
             root_max_tokens: Generation cap for ROOT orchestrator calls,
                 including the forced final answer after iteration exhaustion.
                 Bounds root-path runaway generations the way subcall_max_tokens
@@ -184,6 +193,7 @@ class RLM:
         self.subcall_max_tokens = subcall_max_tokens
         self.subcall_max_timeout = subcall_max_timeout
         self.subcall_verifier = subcall_verifier
+        self.subcall_extra_body = subcall_extra_body
         self.root_max_tokens = root_max_tokens
         # The task this RLM was given, as seen by the verifier's whole-task
         # rule. Set per completion(); children record their delegated prompt.
@@ -269,6 +279,7 @@ class RLM:
             scheduler_aging_interval=self.scheduler_aging_interval,
             scheduler_coordination_dir=self.scheduler_coordination_dir,
             subcall_max_tokens=self.subcall_max_tokens,
+            subcall_extra_body=self.subcall_extra_body,
             root_max_tokens=self.root_max_tokens,
             verifier=self.subcall_verifier,
             verifier_root=self._verifier_root,
@@ -800,9 +811,25 @@ class RLM:
             else:
                 client = get_client(self.backend, child_backend_kwargs or {})
             root_model = model or client.model_name
+            # This fresh client carries none of the run's guards by default -
+            # on 2026-06-12 an unguarded leaf fallback generated 60K+ tokens
+            # five minutes past its run's expired deadline. Apply the sub-call
+            # cap/extras and the run's remaining wall-clock budget.
+            leaf_kwargs: dict[str, Any] = {}
+            if self.subcall_max_tokens is not None:
+                leaf_kwargs["max_tokens"] = self.subcall_max_tokens
+            if self.subcall_extra_body is not None:
+                leaf_kwargs["extra_body"] = self.subcall_extra_body
+            if (
+                self.max_timeout is not None
+                and self._completion_start_time is not None
+                and hasattr(client, "set_deadline")
+            ):
+                elapsed = time.perf_counter() - self._completion_start_time
+                client.set_deadline(max(self.max_timeout - elapsed, 1.0))
             start_time = time.perf_counter()
             try:
-                response = client.completion(prompt)
+                response = client.completion(prompt, **leaf_kwargs)
                 end_time = time.perf_counter()
                 model_usage = client.get_last_usage()
                 usage_summary = UsageSummary(model_usage_summaries={root_model: model_usage})
@@ -897,6 +924,7 @@ class RLM:
             # configuring them on the root.
             subcall_max_tokens=self.subcall_max_tokens,
             subcall_max_timeout=self.subcall_max_timeout,
+            subcall_extra_body=self.subcall_extra_body,
             root_max_tokens=self.root_max_tokens,
             # The SAME instance, not a copy: resubmission memory and veto
             # telemetry must span the recursion tree.

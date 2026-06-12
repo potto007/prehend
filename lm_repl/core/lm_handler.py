@@ -188,6 +188,7 @@ class LMHandler:
         scheduler_aging_interval: float | None = 30.0,
         scheduler_coordination_dir: str | Path | None = None,
         subcall_max_tokens: int | None = None,
+        subcall_extra_body: dict | None = None,
         root_max_tokens: int | None = None,
         verifier: SubcallVerifier | None = None,
         verifier_root: str | None = None,
@@ -207,6 +208,13 @@ class LMHandler:
         # subcall_max_tokens. The client's completion() must accept max_tokens
         # when this is set.
         self.subcall_max_tokens = subcall_max_tokens
+        # Request-body extras for every SUB-call, e.g. {"chat_template_kwargs":
+        # {"enable_thinking": False}} so gemma sub-calls skip the thought
+        # channel (2026-06-12: thinking-mode sub-calls ruminated in-channel to
+        # the token cap and returned empty content). Root calls are unaffected
+        # - the orchestrator reasons better with thinking on. The client's
+        # completion() must accept extra_body when this is set.
+        self.subcall_extra_body = subcall_extra_body
         # Generation cap for ROOT orchestrator calls. The forced final REDUCE
         # after iteration exhaustion is also a root call - uncapped, it ran
         # away to ~50K tokens on 2026-06-11 (n_tokens 65024 at deadline
@@ -307,9 +315,12 @@ class LMHandler:
 
     def subcall_kwargs(self) -> dict:
         """Extra completion() kwargs applied to socket-served sub-calls."""
+        kwargs: dict = {}
         if self.subcall_max_tokens is not None:
-            return {"max_tokens": self.subcall_max_tokens}
-        return {}
+            kwargs["max_tokens"] = self.subcall_max_tokens
+        if self.subcall_extra_body is not None:
+            kwargs["extra_body"] = self.subcall_extra_body
+        return kwargs
 
     def _all_clients(self) -> list[BaseLM]:
         seen: dict[int, BaseLM] = {}
