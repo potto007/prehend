@@ -919,6 +919,8 @@ class RLM:
             # Propagate callbacks to children for nested tracking
             on_subcall_start=self.on_subcall_start,
             on_subcall_complete=self.on_subcall_complete,
+            on_iteration_start=self.on_iteration_start,
+            on_iteration_complete=self.on_iteration_complete,
         )
         try:
             result = child.completion(prompt, root_prompt=None)
