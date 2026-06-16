@@ -39,6 +39,28 @@ from lm_repl.utils.prompts import (
 from lm_repl.utils.rlm_utils import filter_sensitive_keys
 from lm_repl.utils.token_utils import count_tokens, get_context_limit
 
+# Injected (as an assistant turn) to force a final answer once iterations are
+# exhausted. Because it lands as an assistant message, the model frequently
+# CONTINUES it - echoing the sentence verbatim before the real answer. We strip
+# that leading echo from the returned answer (see _strip_forcing_echo).
+_FORCE_FINAL_MSG = "Please provide a final answer to the user's question based on the information provided."
+
+
+def _strip_forcing_echo(response: str) -> str:
+    """Drop a leading verbatim echo of the forced-final prompt from a response.
+
+    No-op when the response does not start with the echo, or when the echo is the
+    ONLY content (a degenerate generation - keep it as-is rather than manufacture
+    an empty answer that downstream would read as a refusal)."""
+    if not response:
+        return response
+    stripped = response.lstrip()
+    if stripped[: len(_FORCE_FINAL_MSG)].lower() == _FORCE_FINAL_MSG.lower():
+        remainder = stripped[len(_FORCE_FINAL_MSG):].lstrip(" \n\r\t")
+        if remainder:
+            return remainder
+    return response
+
 
 class RLM:
     """
@@ -801,22 +823,23 @@ class RLM:
         current_prompt = message_history + [
             {
                 "role": "assistant",
-                "content": "Please provide a final answer to the user's question based on the information provided.",
+                "content": _FORCE_FINAL_MSG,
             }
         ]
         response = lm_handler.completion(current_prompt)
+        final_answer = _strip_forcing_echo(response)
 
         if self.logger:
             self.logger.log(
                 RLMIteration(
                     prompt=current_prompt,
                     response=response,
-                    final_answer=response,
+                    final_answer=final_answer,
                     code_blocks=[],
                 )
             )
 
-        return response
+        return final_answer
 
     def _fallback_answer(self, message: str | dict[str, Any]) -> str:
         """
