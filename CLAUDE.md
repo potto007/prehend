@@ -92,3 +92,12 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 2. Use `detect_changes` for code review.
 3. Use `get_affected_flows` to understand impact.
 4. Use `query_graph` pattern="tests_for" to check coverage.
+
+## Architecture decisions (ADRs)
+
+Settled, non-obvious infra/architecture choices are recorded as MADR ADRs in
+`docs/decisions/` (see `docs/decisions/README.md`). The cross-repo master index lives
+in rlm-trainer `docs/decisions/README.md`. Append an ADR when you make or reverse a
+non-obvious choice; reference its id from the commit. Accepted ADRs are immutable -
+supersede with a new ADR rather than editing one. Cross-repo refs are written
+`<repo> ADR-NNNN` (e.g. local-ai ADR-0007).
