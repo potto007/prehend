@@ -211,6 +211,30 @@ class SRLM(RLM):
             max_tokens=self.max_tokens,
             max_decode_tokens=self.max_decode_tokens,
             max_errors=self.max_errors,
+            # A candidate is a full root-orchestrator clone of this SRLM (it
+            # replaces the K=1 super().completion path), so EVERY caller-set
+            # RLM-level guard must follow it. Omitting any of these let a K>1
+            # trajectory search run looser than the same orchestrator at K=1
+            # (rlm-trainer #9). Keep this list in sync with the recursion-child
+            # construction in rlm.py RLM._subcall (the other hand-maintained
+            # forwarding site); tests/test_subcall_guards.py
+            # test_srlm_candidate_inherits_all_caller_guards is the regression
+            # guard if a new guard is added and forgotten here.
+            root_max_tokens=self.root_max_tokens,
+            subcall_max_tokens=self.subcall_max_tokens,
+            subcall_max_timeout=self.subcall_max_timeout,
+            subcall_extra_body=self.subcall_extra_body,
+            # Shared instances, not copies: resubmission memory / veto telemetry
+            # and answer-acceptance behavior must match the K=1 orchestrator.
+            subcall_verifier=self.subcall_verifier,
+            answer_verifier=self.answer_verifier,
+            clean_retry_on_error=self.clean_retry_on_error,
+            max_answer_retries=self.max_answer_retries,
+            soft_timeout_pct=self.soft_timeout_pct,
+            soft_timeout_message=self.soft_timeout_message,
+            scheduler_max_concurrent=self.scheduler_max_concurrent,
+            scheduler_aging_interval=self.scheduler_aging_interval,
+            scheduler_coordination_dir=self.scheduler_coordination_dir,
             custom_system_prompt=self.system_prompt,
             other_backends=self.other_backends,
             other_backend_kwargs=self.other_backend_kwargs,

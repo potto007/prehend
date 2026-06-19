@@ -186,6 +186,55 @@ def test_srlm_candidate_inherits_decode_ceiling():
     assert candidate.max_decode_tokens == 4096
 
 
+def test_srlm_candidate_inherits_all_caller_guards():
+    """A candidate is a full root-orchestrator clone of the SRLM (it replaces the
+    SRLM's own K=1 super().completion), so EVERY caller-set RLM-level guard must
+    reach it - otherwise a K>1 trajectory search runs LOOSER than the same
+    orchestrator at K=1 (rlm-trainer #9). Each value is non-default so the test
+    proves forwarding, not coincidental library defaults. This is the regression
+    guard the hand-maintained _spawn_candidate_rlm arg list lacked: a new RLM
+    guard added without forwarding it to candidates fails here."""
+    from lm_repl import SRLM
+
+    verifier = object()  # subcall_verifier is stored/forwarded by reference
+    answer_check = object()  # answer_verifier likewise
+
+    srlm = SRLM(
+        backend="openai",
+        backend_kwargs={"model_name": "m"},
+        n_candidates=3,
+        # --- the guards that were silently dropped ---
+        root_max_tokens=1234,
+        subcall_max_tokens=567,
+        subcall_max_timeout=42.0,
+        subcall_extra_body=_NOTHINK,
+        subcall_verifier=verifier,
+        answer_verifier=answer_check,
+        clean_retry_on_error=True,
+        max_answer_retries=7,
+        soft_timeout_pct=0.6,
+        soft_timeout_message="wrap it up",
+        scheduler_max_concurrent=4,
+        scheduler_aging_interval=15.0,
+        scheduler_coordination_dir="/tmp/coord",
+    )
+    candidate = srlm._spawn_candidate_rlm(0)
+
+    assert candidate.root_max_tokens == 1234
+    assert candidate.subcall_max_tokens == 567
+    assert candidate.subcall_max_timeout == 42.0
+    assert candidate.subcall_extra_body == _NOTHINK
+    assert candidate.subcall_verifier is verifier
+    assert candidate.answer_verifier is answer_check
+    assert candidate.clean_retry_on_error is True
+    assert candidate.max_answer_retries == 7
+    assert candidate.soft_timeout_pct == 0.6
+    assert candidate.soft_timeout_message == "wrap it up"
+    assert candidate.scheduler_max_concurrent == 4
+    assert candidate.scheduler_aging_interval == 15.0
+    assert candidate.scheduler_coordination_dir == "/tmp/coord"
+
+
 # ---------------------------------------------------------------------------
 # cancel_inflight / set_run_deadline fan-out
 # ---------------------------------------------------------------------------
