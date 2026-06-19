@@ -15,7 +15,6 @@ from lm_repl import RLM
 from lm_repl.core.rlm import _guard_escalation_due
 from tests.mock_lm import MockLM
 
-
 # ---- pure decision function ---------------------------------------------------
 
 def test_not_due_below_limit():
