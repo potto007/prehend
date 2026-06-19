@@ -209,6 +209,7 @@ class SRLM(RLM):
             max_budget=self.max_budget,
             max_timeout=self.max_timeout,
             max_tokens=self.max_tokens,
+            max_decode_tokens=self.max_decode_tokens,
             max_errors=self.max_errors,
             custom_system_prompt=self.system_prompt,
             other_backends=self.other_backends,

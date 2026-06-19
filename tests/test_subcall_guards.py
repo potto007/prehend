@@ -35,18 +35,22 @@ def test_batched_subcalls_get_max_tokens_cap():
     assert mock.seen_max_tokens == [512, 512, 512]
 
 
-def test_no_cap_by_default():
+def test_no_subcall_cap_only_when_ceiling_disabled():
+    """Sub-calls are unbounded ONLY with the ceiling explicitly disabled; the
+    default-ceiling case is covered by test_default_decode_ceiling_caps_subcall."""
     mock = MockLM(responses=["ok"])
-    with LMHandler(client=mock) as handler:
+    with LMHandler(client=mock, max_decode_tokens=None) as handler:
         response = send_lm_request(handler.address, LMRequest(prompt="hi"))
     assert response.success
     assert mock.seen_max_tokens == [None]
 
 
 def test_root_completion_not_capped_by_subcall_limit():
-    """subcall_max_tokens does not touch the root orchestrator path."""
+    """subcall_max_tokens does not touch the root orchestrator path. (Ceiling
+    disabled here to isolate the non-leakage property from the hard ceiling,
+    which would otherwise bound root to DEFAULT_MAX_DECODE_TOKENS.)"""
     mock = MockLM(responses=["ok"])
-    handler = LMHandler(client=mock, subcall_max_tokens=128)
+    handler = LMHandler(client=mock, subcall_max_tokens=128, max_decode_tokens=None)
     assert handler.completion("root prompt") == "ok"
     assert mock.seen_max_tokens == [None]
 
@@ -86,6 +90,100 @@ def test_rlm_wires_root_max_tokens_through_to_root_calls():
         rlm.completion("context", root_prompt="q")
         root_call_kwargs = mock_lm.completion.call_args_list[0].kwargs
         assert root_call_kwargs.get("max_tokens") == 8192
+
+
+# ---------------------------------------------------------------------------
+# max_decode_tokens: an ALWAYS-applied hard per-generation ceiling so NO path
+# (root, sub-call, or SRLM candidate) can run unbounded into the shared KV
+# pool. Born from the 2026-06-18 crash (rlm-trainer #7): an SRLM K=3 run that
+# set no explicit caps let a degenerate ROOT decode reach n_decoded=79,497
+# tokens, exhausting the unified KV pool -> GGML_ASSERT(logits != nullptr) ->
+# ggml_abort killed the backend child. root_max_tokens / subcall_max_tokens
+# are OPTIONAL (default None = uncapped); this ceiling is the non-disableable-
+# by-omission backstop, applied as min(specific_cap or inf, ceiling).
+# ---------------------------------------------------------------------------
+
+_CEILING = 8192  # DEFAULT_MAX_DECODE_TOKENS
+
+
+def test_default_decode_ceiling_caps_root():
+    """With NO explicit caps, the root path is bounded by the default ceiling
+    (not left unbounded as before)."""
+    mock = MockLM(responses=["ok"])
+    handler = LMHandler(client=mock)
+    assert handler.completion("root prompt") == "ok"
+    assert mock.seen_max_tokens == [_CEILING]
+
+
+def test_default_decode_ceiling_caps_subcall():
+    mock = MockLM(responses=["ok"])
+    with LMHandler(client=mock) as handler:
+        response = send_lm_request(handler.address, LMRequest(prompt="hi"))
+    assert response.success
+    assert mock.seen_max_tokens == [_CEILING]
+
+
+def test_decode_ceiling_clamps_oversized_explicit_root_cap():
+    """The crux: even a huge explicit root_max_tokens cannot exceed the ceiling,
+    so one slot can never consume the whole KV pool."""
+    mock = MockLM(responses=["ok"])
+    handler = LMHandler(client=mock, root_max_tokens=99999, max_decode_tokens=8192)
+    handler.completion("root prompt")
+    assert mock.seen_max_tokens == [8192]
+
+
+def test_decode_ceiling_clamps_oversized_explicit_subcall_cap():
+    mock = MockLM(responses=["ok"])
+    with LMHandler(client=mock, subcall_max_tokens=99999, max_decode_tokens=8192) as handler:
+        send_lm_request(handler.address, LMRequest(prompt="hi"))
+    assert mock.seen_max_tokens == [8192]
+
+
+def test_tighter_explicit_cap_wins_over_ceiling():
+    """A tighter explicit cap still applies (min of the two)."""
+    mock = MockLM(responses=["ok"])
+    handler = LMHandler(client=mock, root_max_tokens=4096, max_decode_tokens=8192)
+    handler.completion("root prompt")
+    assert mock.seen_max_tokens == [4096]
+
+
+def test_decode_ceiling_can_be_disabled():
+    """max_decode_tokens=None is the explicit escape hatch back to unbounded."""
+    mock = MockLM(responses=["ok"])
+    handler = LMHandler(client=mock, max_decode_tokens=None)
+    handler.completion("root prompt")
+    assert mock.seen_max_tokens == [None]
+
+
+def test_rlm_applies_default_decode_ceiling_to_root():
+    """An RLM constructed with no token caps still bounds its root calls."""
+    import lm_repl.core.rlm as rlm_module
+    from lm_repl import RLM
+    from tests.test_subcall import create_mock_lm, final
+
+    with patch.object(rlm_module, "get_client") as mock_get_client:
+        mock_lm = create_mock_lm([final("answer")])
+        mock_get_client.return_value = mock_lm
+        rlm = RLM(backend="openai", backend_kwargs={"model_name": "m"})
+        rlm.completion("context", root_prompt="q")
+        kw = mock_lm.completion.call_args_list[0].kwargs
+        assert kw.get("max_tokens") == 8192
+
+
+def test_srlm_candidate_inherits_decode_ceiling():
+    """SRLM K>1 spawns candidate RLMs via _spawn_candidate_rlm, which historically
+    dropped the token caps - so candidates ran uncapped. The ceiling must reach
+    them (the custom value proves forwarding, not just the RLM default)."""
+    from lm_repl import SRLM
+
+    srlm = SRLM(
+        backend="openai",
+        backend_kwargs={"model_name": "m"},
+        n_candidates=3,
+        max_decode_tokens=4096,
+    )
+    candidate = srlm._spawn_candidate_rlm(0)
+    assert candidate.max_decode_tokens == 4096
 
 
 # ---------------------------------------------------------------------------

@@ -18,6 +18,24 @@ from lm_repl.core.comms_utils import LMRequest, LMResponse, socket_recv, socket_
 from lm_repl.core.types import RLMChatCompletion, UsageSummary
 from lm_repl.core.verifier import REJECTION_PREFIX, SubcallReview, SubcallVerifier
 
+# Hard per-generation output ceiling, ALWAYS applied (root + sub-calls) unless
+# explicitly disabled (max_decode_tokens=None). The optional root_max_tokens /
+# subcall_max_tokens default to None (uncapped); this is the non-disableable-by-
+# omission backstop so no single generation can run away into the shared KV
+# pool. 8192 = the value prod (librarian) already runs root calls at; at
+# parallel=4 over a ~98K-token unified pool a single slot's prompt+8192-decode
+# already approaches its share, so this is a ceiling, not a tuning knob.
+# (rlm-trainer #7: an uncapped SRLM-candidate root decode hit 79,497 tokens ->
+# failed to find a memory slot -> GGML_ASSERT(logits != nullptr) -> ggml_abort.)
+DEFAULT_MAX_DECODE_TOKENS = 8192
+
+
+def _effective_cap(specific: int | None, ceiling: int | None) -> int | None:
+    """The tighter of an optional per-path cap and the hard ceiling. None means
+    'no limit' for either input; returns None only when both are None."""
+    caps = [c for c in (specific, ceiling) if c is not None]
+    return min(caps) if caps else None
+
 
 class LMRequestHandler(StreamRequestHandler):
     """Socket handler for LLM completion requests."""
@@ -190,6 +208,7 @@ class LMHandler:
         subcall_max_tokens: int | None = None,
         subcall_extra_body: dict | None = None,
         root_max_tokens: int | None = None,
+        max_decode_tokens: int | None = DEFAULT_MAX_DECODE_TOKENS,
         verifier: SubcallVerifier | None = None,
         verifier_root: str | None = None,
     ):
@@ -221,6 +240,13 @@ class LMHandler:
         # cancel), eating 9 of a 10-minute ask. Set generously: real final
         # answers run a few thousand tokens; only runaways hit this.
         self.root_max_tokens = root_max_tokens
+        # Hard per-generation ceiling applied to BOTH root and sub-calls as the
+        # min with the path-specific cap above (see DEFAULT_MAX_DECODE_TOKENS).
+        # Unlike root_max_tokens / subcall_max_tokens (default None = uncapped),
+        # this is on by default so an SRLM candidate or any caller that omits
+        # the explicit caps still cannot run a single decode unbounded into the
+        # KV pool. None disables it (back to fully unbounded).
+        self.max_decode_tokens = max_decode_tokens
         # Strategy verifier: reviews every llm_query sub-call served over the
         # socket before it executes. verifier_root is the task the calling RLM
         # was given, so the whole-task-delegation rule has something to
@@ -316,8 +342,9 @@ class LMHandler:
     def subcall_kwargs(self) -> dict:
         """Extra completion() kwargs applied to socket-served sub-calls."""
         kwargs: dict = {}
-        if self.subcall_max_tokens is not None:
-            kwargs["max_tokens"] = self.subcall_max_tokens
+        cap = _effective_cap(self.subcall_max_tokens, self.max_decode_tokens)
+        if cap is not None:
+            kwargs["max_tokens"] = cap
         if self.subcall_extra_body is not None:
             kwargs["extra_body"] = self.subcall_extra_body
         return kwargs
@@ -364,8 +391,9 @@ class LMHandler:
 
     def completion(self, prompt: str, model: str | None = None) -> str:
         """Direct completion call (for main process use)."""
-        if self.root_max_tokens is not None:
-            return self.get_client(model).completion(prompt, max_tokens=self.root_max_tokens)
+        cap = _effective_cap(self.root_max_tokens, self.max_decode_tokens)
+        if cap is not None:
+            return self.get_client(model).completion(prompt, max_tokens=cap)
         return self.get_client(model).completion(prompt)
 
     def __enter__(self):

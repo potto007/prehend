@@ -1277,6 +1277,93 @@ wheels = [
 ]
 
 [[package]]
+name = "lm-repl"
+version = "0.2.0"
+source = { editable = "." }
+dependencies = [
+    { name = "anthropic" },
+    { name = "google-genai" },
+    { name = "openai" },
+    { name = "portkey-ai" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+    { name = "rich" },
+]
+
+[package.optional-dependencies]
+daytona = [
+    { name = "daytona" },
+    { name = "dill" },
+]
+e2b = [
+    { name = "dill" },
+    { name = "e2b-code-interpreter" },
+]
+ipython = [
+    { name = "dill" },
+    { name = "ipykernel" },
+    { name = "ipython", version = "9.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "ipython", version = "9.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "jupyter-client" },
+]
+modal = [
+    { name = "dill" },
+    { name = "modal" },
+]
+prime = [
+    { name = "dill" },
+    { name = "prime-sandboxes" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pre-commit" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+test = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anthropic", specifier = ">=0.75.0" },
+    { name = "daytona", marker = "extra == 'daytona'", specifier = ">=0.128.1" },
+    { name = "dill", marker = "extra == 'daytona'", specifier = ">=0.3.7" },
+    { name = "dill", marker = "extra == 'e2b'", specifier = ">=0.3.7" },
+    { name = "dill", marker = "extra == 'ipython'", specifier = ">=0.3.7" },
+    { name = "dill", marker = "extra == 'modal'", specifier = ">=0.3.7" },
+    { name = "dill", marker = "extra == 'prime'", specifier = ">=0.3.7" },
+    { name = "e2b-code-interpreter", marker = "extra == 'e2b'", specifier = ">=0.0.11" },
+    { name = "google-genai", specifier = ">=1.56.0" },
+    { name = "ipykernel", marker = "extra == 'ipython'", specifier = ">=6.0.0" },
+    { name = "ipython", marker = "extra == 'ipython'", specifier = ">=8.0.0" },
+    { name = "jupyter-client", marker = "extra == 'ipython'", specifier = ">=8.0.0" },
+    { name = "modal", marker = "extra == 'modal'", specifier = ">=0.73.0" },
+    { name = "openai", specifier = ">=2.14.0" },
+    { name = "portkey-ai", specifier = ">=2.1.0" },
+    { name = "prime-sandboxes", marker = "extra == 'prime'", specifier = ">=0.2.0" },
+    { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "requests", specifier = ">=2.32.5" },
+    { name = "rich", specifier = ">=13.0.0" },
+]
+provides-extras = ["modal", "e2b", "daytona", "prime", "ipython"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pre-commit", specifier = ">=4.5.1" },
+    { name = "ruff", specifier = ">=0.14.10" },
+    { name = "ty", specifier = ">=0.0.7" },
+]
+test = [
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.24.0" },
+    { name = "pytest-cov", specifier = ">=6.0.0" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2194,95 +2281,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fb/d2/8920e102050a0de7bfabeb4c4614a49248cf8d5d7a8d01885fbb24dc767a/rich-14.2.0.tar.gz", hash = "sha256:73ff50c7c0c1c77c8243079283f4edb376f0f6442433aecb8ce7e6d0b92d1fe4", size = 219990, upload-time = "2025-10-09T14:16:53.064Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/25/7a/b0178788f8dc6cafce37a212c99565fa1fe7872c70c6c9c1e1a372d9d88f/rich-14.2.0-py3-none-any.whl", hash = "sha256:76bc51fe2e57d2b1be1f96c524b890b816e334ab4c1e45888799bfaab0021edd", size = 243393, upload-time = "2025-10-09T14:16:51.245Z" },
-]
-
-[[package]]
-name = "rlms"
-version = "0.1.1"
-source = { editable = "." }
-dependencies = [
-    { name = "anthropic" },
-    { name = "google-genai" },
-    { name = "openai" },
-    { name = "portkey-ai" },
-    { name = "pytest" },
-    { name = "python-dotenv" },
-    { name = "requests" },
-    { name = "rich" },
-]
-
-[package.optional-dependencies]
-daytona = [
-    { name = "daytona" },
-    { name = "dill" },
-]
-e2b = [
-    { name = "dill" },
-    { name = "e2b-code-interpreter" },
-]
-ipython = [
-    { name = "dill" },
-    { name = "ipykernel" },
-    { name = "ipython", version = "9.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "ipython", version = "9.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "jupyter-client" },
-]
-modal = [
-    { name = "dill" },
-    { name = "modal" },
-]
-prime = [
-    { name = "dill" },
-    { name = "prime-sandboxes" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pre-commit" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-test = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anthropic", specifier = ">=0.75.0" },
-    { name = "daytona", marker = "extra == 'daytona'", specifier = ">=0.128.1" },
-    { name = "dill", marker = "extra == 'daytona'", specifier = ">=0.3.7" },
-    { name = "dill", marker = "extra == 'e2b'", specifier = ">=0.3.7" },
-    { name = "dill", marker = "extra == 'ipython'", specifier = ">=0.3.7" },
-    { name = "dill", marker = "extra == 'modal'", specifier = ">=0.3.7" },
-    { name = "dill", marker = "extra == 'prime'", specifier = ">=0.3.7" },
-    { name = "e2b-code-interpreter", marker = "extra == 'e2b'", specifier = ">=0.0.11" },
-    { name = "google-genai", specifier = ">=1.56.0" },
-    { name = "ipykernel", marker = "extra == 'ipython'", specifier = ">=6.0.0" },
-    { name = "ipython", marker = "extra == 'ipython'", specifier = ">=8.0.0" },
-    { name = "jupyter-client", marker = "extra == 'ipython'", specifier = ">=8.0.0" },
-    { name = "modal", marker = "extra == 'modal'", specifier = ">=0.73.0" },
-    { name = "openai", specifier = ">=2.14.0" },
-    { name = "portkey-ai", specifier = ">=2.1.0" },
-    { name = "prime-sandboxes", marker = "extra == 'prime'", specifier = ">=0.2.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "python-dotenv", specifier = ">=1.2.1" },
-    { name = "requests", specifier = ">=2.32.5" },
-    { name = "rich", specifier = ">=13.0.0" },
-]
-provides-extras = ["modal", "e2b", "daytona", "prime", "ipython"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pre-commit", specifier = ">=4.5.1" },
-    { name = "ruff", specifier = ">=0.14.10" },
-    { name = "ty", specifier = ">=0.0.7" },
-]
-test = [
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.24.0" },
-    { name = "pytest-cov", specifier = ">=6.0.0" },
 ]
 
 [[package]]

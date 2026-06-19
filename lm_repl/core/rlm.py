@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from lm_repl.clients import BaseLM, get_client
-from lm_repl.core.lm_handler import LMHandler
+from lm_repl.core.lm_handler import DEFAULT_MAX_DECODE_TOKENS, LMHandler
 from lm_repl.core.types import (
     ClientBackend,
     CodeBlock,
@@ -136,6 +136,7 @@ class RLM:
         clean_retry_on_error: bool = False,
         subcall_extra_body: dict[str, Any] | None = None,
         root_max_tokens: int | None = None,
+        max_decode_tokens: int | None = DEFAULT_MAX_DECODE_TOKENS,
         soft_timeout_pct: float | None = None,
         soft_timeout_message: str | None = None,
         scheduler_max_concurrent: int | None = None,
@@ -202,6 +203,13 @@ class RLM:
                 children. Requires a backend whose completion() accepts
                 extra_body (openai backend does). None (default) sends
                 sub-calls unmodified.
+            max_decode_tokens: Hard per-generation output ceiling applied to BOTH
+                root and sub-calls as min(path-specific cap, this). Unlike
+                root_max_tokens / subcall_max_tokens (default None = uncapped),
+                this defaults ON (8192) so no caller - including SRLM candidate
+                trajectories that omit the explicit caps - can run a single
+                decode unbounded into the shared KV pool (rlm-trainer #7). Pass
+                None to disable.
             root_max_tokens: Generation cap for ROOT orchestrator calls,
                 including the forced final answer after iteration exhaustion.
                 Bounds root-path runaway generations the way subcall_max_tokens
@@ -277,6 +285,7 @@ class RLM:
         self.clean_retry_on_error = clean_retry_on_error
         self.subcall_extra_body = subcall_extra_body
         self.root_max_tokens = root_max_tokens
+        self.max_decode_tokens = max_decode_tokens
         # soft_timeout_pct: inject a one-time wrap-up message once this fraction of
         # max_timeout has elapsed (see _SOFT_BUDGET_MSG / _soft_budget_due). Default
         # None = off (no behavior change). soft_timeout_message overrides the text.
@@ -370,6 +379,7 @@ class RLM:
             subcall_max_tokens=self.subcall_max_tokens,
             subcall_extra_body=self.subcall_extra_body,
             root_max_tokens=self.root_max_tokens,
+            max_decode_tokens=self.max_decode_tokens,
             verifier=self.subcall_verifier,
             verifier_root=self._verifier_root,
         )
