@@ -75,6 +75,39 @@ def _is_context_contention(e: openai.APIStatusError) -> bool:
 
 _REASONING_TAIL_CHARS = 1500
 
+# Reasoning-loop repeat-guard (rlm-trainer #6 part 3). A single leaf completion can
+# spin in the thought-channel, repeating tokens/phrases with no content, until
+# max_tokens or the run deadline. Detect it as a high word-level k-gram repeat rate
+# over a trailing window: on the 2026-06-18 eval, legit reasoning measured <=0.006
+# while every degeneration measured >=0.42 (exact-repeat AND no-progress-with-variation),
+# so a ~0.35 threshold separates them with wide margin.
+_REPEAT_GUARD_K = 4                 # word n-gram size
+_REPEAT_GUARD_WINDOW_CHARS = 1500   # trailing reasoning examined
+_REPEAT_GUARD_MIN_WORDS = 60        # don't judge until this much reasoning has accrued
+_REPEAT_GUARD_CHECK_EVERY = 300     # chars of new reasoning between (cheap) re-checks
+
+
+def _reasoning_is_looping(
+    text: str,
+    threshold: float,
+    k: int = _REPEAT_GUARD_K,
+    window_chars: int = _REPEAT_GUARD_WINDOW_CHARS,
+    min_words: int = _REPEAT_GUARD_MIN_WORDS,
+) -> bool:
+    """True when the trailing reasoning window is dominated by repeated k-grams.
+
+    repeat_rate = fraction of word k-grams in the window that are NOT the first
+    occurrence; high rate = the model is cycling (exact repetition or no-progress
+    paraphrase) rather than making progress. Below ``min_words`` we cannot judge
+    yet and return False, so the guard never fires on a short repetitive preamble.
+    """
+    words = text[-window_chars:].split()
+    if len(words) < max(min_words, k + 1):
+        return False
+    grams = [tuple(words[i : i + k]) for i in range(len(words) - k + 1)]
+    repeat_rate = 1.0 - len(set(grams)) / len(grams)
+    return repeat_rate >= threshold
+
 
 def _resolve_content(content: str | None, reasoning: str | None) -> str:
     """Final content for a completion, never a silent empty string.
@@ -139,6 +172,7 @@ class OpenAIClient(BaseLM):
         default_extra_body: dict[str, Any] | None = None,
         scheduler: RequestScheduler | None = None,
         stream: bool = False,
+        repeat_guard_threshold: float | None = None,
         **kwargs,
     ):
         super().__init__(model_name=model_name, **kwargs)
@@ -149,6 +183,12 @@ class OpenAIClient(BaseLM):
         # dead client when the full response is written). Recommended for local
         # single-server backends (llama-server).
         self.stream = stream
+        # Reasoning-loop repeat-guard threshold (streamed calls only). None/<=0 = off,
+        # preserving the prior behavior; a value in (0,1) aborts a no-progress reasoning
+        # spin early and returns the tagged tail. See _reasoning_is_looping.
+        self._repeat_guard_threshold = (
+            repeat_guard_threshold if (repeat_guard_threshold or 0) > 0 else None
+        )
         # Cooperative cancellation: the owning run (RLM) sets this to abort every
         # in-flight and queued call of this client; checked between stream chunks.
         self.cancel_event = threading.Event()
@@ -313,6 +353,7 @@ class OpenAIClient(BaseLM):
         parts: list[str] = []
         reasoning_parts: list[str] = []
         usage = None
+        reasoning_chars_at_check = 0
         try:
             for chunk in stream:
                 self._check_abort()
@@ -325,11 +366,30 @@ class OpenAIClient(BaseLM):
                         reasoning_parts.append(reasoning)
                 if getattr(chunk, "usage", None) is not None:
                     usage = chunk.usage
+                # Repeat-guard: only while still reasoning-only (no answer content yet),
+                # re-checked every _REPEAT_GUARD_CHECK_EVERY chars of new reasoning so the
+                # scan stays cheap. On a no-progress loop, stop early and let the finally
+                # close the stream (server frees the slot) - _resolve_content then returns
+                # the tagged tail, the same output the spin would reach far later.
+                if self._repeat_guard_threshold and not parts:
+                    total = sum(len(r) for r in reasoning_parts)
+                    if total - reasoning_chars_at_check >= _REPEAT_GUARD_CHECK_EVERY:
+                        reasoning_chars_at_check = total
+                        if _reasoning_is_looping(
+                            "".join(reasoning_parts), self._repeat_guard_threshold
+                        ):
+                            log.info(
+                                "repeat-guard: aborting looping reasoning at %d chars", total
+                            )
+                            break
         finally:
             # On abort this closes the HTTP stream; llama-server notices the
             # disconnect and frees the slot instead of generating to completion.
             stream.close()
-        self._track_cost(SimpleNamespace(usage=usage), model)
+        # A repeat-guard abort breaks before the trailing usage chunk arrives; there
+        # is no usage to track for an abandoned generation, so skip (best-effort).
+        if usage is not None:
+            self._track_cost(SimpleNamespace(usage=usage), model)
         return _resolve_content("".join(parts), "".join(reasoning_parts))
 
     async def acompletion(

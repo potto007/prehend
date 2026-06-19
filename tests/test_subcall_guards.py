@@ -442,6 +442,108 @@ def test_completion_extra_body_lands_in_request():
 
 
 # ---------------------------------------------------------------------------
+# Reasoning-loop repeat-guard (rlm-trainer #6 part 3): a single leaf completion
+# can spin in the gemma thought-channel, repeating tokens/phrases with no content
+# and no tool call, until max_tokens or the run deadline (245-407s observed). The
+# subcall-cap counts CALLS (this is one), the soft-budget needs the model to FINISH
+# and cooperate, and contention-retry is for KV 500s - none stop a single spinning
+# generation. The guard aborts the stream on no-progress reasoning and returns the
+# tagged tail early (same output, far less wall-clock). Default off.
+# ---------------------------------------------------------------------------
+
+# Real degeneration shapes from the 2026-06-18 eval: exact-repeat (row 96) and
+# no-progress-with-variation (rows 135/136). repeat-rate separates both from legit
+# reasoning by a wide margin (measured: legit <=0.006, degenerate >=0.42).
+_LOOP_EXACT = '"reimbursement" or ' * 60
+_LOOP_NOPROGRESS = (
+    "Wait, I will try to search the context for ambulance and BLS and mileage "
+    "again, but I will use a more comprehensive list of keywords.\n"
+    "Let us try to look at the documents in the candidate list. I will start with 010.\n"
+) * 6
+_LEGIT_REASONING = (
+    "The OTP episode of care is a contiguous seven day period. A drug episode bundles "
+    "the medication with counseling under one G code, while a non drug episode covers "
+    "only the behavioral services. Billing requires at least one service from the weekly "
+    "bundle. New FDA approved medications not covered by the base rate are billed with the "
+    "add on code. Mileage for interfacility transfer follows the loaded miles rule and the "
+    "documents describe the modifier hierarchy in detail across several distinct sections."
+)
+
+
+@pytest.mark.parametrize("text", [_LOOP_EXACT, _LOOP_NOPROGRESS])
+def test_reasoning_is_looping_detects_degeneration(text):
+    from lm_repl.clients.openai import _reasoning_is_looping
+
+    assert _reasoning_is_looping(text, threshold=0.35)
+
+
+def test_reasoning_is_looping_passes_legit_reasoning():
+    from lm_repl.clients.openai import _reasoning_is_looping
+
+    assert not _reasoning_is_looping(_LEGIT_REASONING, threshold=0.35)
+
+
+def test_reasoning_is_looping_ignores_short_text():
+    # below the min-words floor we cannot judge yet: never fire early on a few words
+    from lm_repl.clients.openai import _reasoning_is_looping
+
+    assert not _reasoning_is_looping("loop loop loop loop", threshold=0.35)
+
+
+def _rchunk(reasoning=None, content=None, usage=None):
+    delta = SimpleNamespace(content=content, reasoning_content=reasoning)
+    return SimpleNamespace(choices=[SimpleNamespace(delta=delta)], usage=usage)
+
+
+def _loop_reasoning_chunks(n=120):
+    """n reasoning chunks of exact-repeat loop content (well over the guard window)."""
+    return [_rchunk(reasoning='"reimbursement" or ') for _ in range(n)] + [_rchunk(usage=_USAGE)]
+
+
+def test_repeat_guard_aborts_looping_stream_early():
+    client = _patched_openai_client(stream=True, repeat_guard_threshold=0.35)
+    yielded = []
+    chunks = _loop_reasoning_chunks(120)
+    stream = _FakeStream(chunks, on_yield=lambda i: yielded.append(i))
+    client.client = MagicMock()
+    client.client.chat.completions.create.return_value = stream
+
+    out = client.completion("hi")
+    assert out.startswith("[reasoning-only response")   # returns the tagged tail
+    assert stream.closed                                # server generation torn down
+    assert len(yielded) < len(chunks)                   # stopped BEFORE consuming all
+
+
+def test_repeat_guard_disabled_by_default_consumes_whole_stream():
+    client = _patched_openai_client(stream=True)        # no threshold -> off
+    yielded = []
+    chunks = _loop_reasoning_chunks(120)
+    stream = _FakeStream(chunks, on_yield=lambda i: yielded.append(i))
+    client.client = MagicMock()
+    client.client.chat.completions.create.return_value = stream
+
+    client.completion("hi")
+    assert len(yielded) == len(chunks)                  # ran to completion, no early stop
+
+
+def test_repeat_guard_does_not_fire_once_content_is_flowing():
+    # once real answer content has begun, the guard must stand down so the answer is
+    # never truncated - even if reasoning-channel tokens keep arriving alongside it
+    client = _patched_openai_client(stream=True, repeat_guard_threshold=0.35)
+    chunks = ([_rchunk(content="The answer is 60 days.")]
+              + [_rchunk(reasoning='"reimbursement" or ') for _ in range(120)]
+              + [_rchunk(usage=_USAGE)])
+    yielded = []
+    stream = _FakeStream(chunks, on_yield=lambda i: yielded.append(i))
+    client.client = MagicMock()
+    client.client.chat.completions.create.return_value = stream
+
+    out = client.completion("hi")
+    assert out == "The answer is 60 days."
+    assert len(yielded) == len(chunks)
+
+
+# ---------------------------------------------------------------------------
 # Reasoning-only responses must not surface as silent empty strings
 # (2026-06-12: jinja routes gemma thought-channel tokens to reasoning_content;
 # a response that never exits the channel arrived as content="" and the
