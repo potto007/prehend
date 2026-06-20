@@ -108,6 +108,17 @@ def test_collect_none_writes_nothing(tmp_path):
     assert bank.load() == []
 
 
+def test_collect_skips_entry_whose_id_already_exists(tmp_path):
+    bank = Bank(tmp_path / "mem")
+    bank.append(_entry("dup", [0.1, 0.2]))  # id 'dup' already present
+
+    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(),
+                            distiller=lambda q, c, r: _entry("dup", [0.3, 0.4]))
+    harness.answer(context="ctx", question="q")
+    # Still exactly one 'dup' entry; collect must not append a duplicate id.
+    assert [e["id"] for e in bank.load()] == ["dup"]
+
+
 def test_collect_failure_never_breaks_answer(tmp_path):
     bank = Bank(tmp_path / "mem")
 

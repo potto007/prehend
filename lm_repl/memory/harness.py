@@ -96,7 +96,11 @@ class MemoryHarness:
             return
         try:
             entry = self.distiller(question, context, result)
-            if entry:
-                self.bank.append(entry)
+            if not entry:
+                return
+            eid = entry.get("id")
+            if eid is not None and any(e.get("id") == eid for e in self.bank.load()):
+                return  # one experience per id; do not append a duplicate
+            self.bank.append(entry)
         except Exception:
             pass
