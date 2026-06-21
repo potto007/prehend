@@ -23,7 +23,6 @@ import io
 import json
 import os
 import re
-import warnings
 import shutil
 import signal
 import socketserver
@@ -34,6 +33,7 @@ import threading
 import time
 import traceback
 import uuid
+import warnings
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager, redirect_stderr, redirect_stdout

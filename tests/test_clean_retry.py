@@ -2,13 +2,11 @@
 from the next prompt and replaced with a compact error note, so the model retries
 fresh instead of escalating its broken attempt."""
 
-import json
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import lm_repl.core.rlm as rlm_module
 from lm_repl import RLM
 from lm_repl.core.types import ModelUsageSummary, UsageSummary
-from unittest.mock import Mock
 
 BROKEN = "```repl\nundefined_variable_xyz_marker\n```"  # NameError -> stderr
 

@@ -1,8 +1,17 @@
 """Tests for the SRLM subclass - context-length routing, direct mode, and selection."""
-from unittest.mock import MagicMock, patch
+
+import math
 
 from lm_repl.core.rlm import RLM
-from lm_repl.core.srlm import SRLM, _choose_mode, _build_direct_messages, _select_best
+from lm_repl.core.srlm import (
+    SRLM,
+    _build_direct_messages,
+    _choose_mode,
+    _compute_vc_score,
+    _extract_step_texts,
+    _parse_confidence_scores,
+    _select_best,
+)
 from lm_repl.core.types import RLMChatCompletion, UsageSummary
 
 
@@ -255,7 +264,6 @@ class TestCandidateTemperature:
         original_extra = dict(srlm.backend_kwargs.get("default_extra_body", {}))
 
         captured_temps = []
-        original_completion = RLM.completion
 
         def mock_completion(self_inner, prompt, root_prompt=None):
             extra = self_inner.backend_kwargs.get("default_extra_body", {})
@@ -464,6 +472,7 @@ class TestCandidateSpawning:
 
         srlm = self._srlm()
         import unittest.mock
+
         import pytest
         with unittest.mock.patch.object(RLM, "completion", mock_completion):
             with pytest.raises(RuntimeError):
@@ -471,13 +480,6 @@ class TestCandidateSpawning:
 
 
 # --- Verbalized confidence & joint scoring tests ---
-
-import math
-from lm_repl.core.srlm import (
-    _compute_vc_score,
-    _extract_step_texts,
-    _parse_confidence_scores,
-)
 
 
 def _make_trajectory_metadata(step_responses: list[str]) -> dict:

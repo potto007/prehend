@@ -1,6 +1,5 @@
 """Tests to verify all imports are correct and non-conflicting."""
 
-import importlib
 import subprocess
 import sys
 from collections import defaultdict
