@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 
-from mnemex.clients.portkey import PortkeyClient
+from prehend.clients.portkey import PortkeyClient
 
 load_dotenv()
 

@@ -1,7 +1,7 @@
-"""Tests for the mnemex memory bank (meta.json store)."""
+"""Tests for the prehend memory bank (meta.json store)."""
 from __future__ import annotations
 
-from mnemex.memory.bank import Bank
+from prehend.memory.bank import Bank
 
 
 def _entry(eid: str, use: int = 0, hit: int = 0) -> dict:

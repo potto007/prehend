@@ -1,10 +1,10 @@
-"""Tests for the mnemex MemoryHarness (retrieve -> inject -> solve -> collect)."""
+"""Tests for the prehend MemoryHarness (retrieve -> inject -> solve -> collect)."""
 from __future__ import annotations
 
 from types import SimpleNamespace
 
-from mnemex.memory.bank import Bank
-from mnemex.memory.harness import MemoryHarness
+from prehend.memory.bank import Bank
+from prehend.memory.harness import MemoryHarness
 
 
 class FakeSolver:

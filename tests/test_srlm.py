@@ -2,8 +2,8 @@
 
 import math
 
-from mnemex.core.rlm import RLM
-from mnemex.core.srlm import (
+from prehend.core.rlm import RLM
+from prehend.core.srlm import (
     SRLM,
     _build_direct_messages,
     _choose_mode,
@@ -12,7 +12,7 @@ from mnemex.core.srlm import (
     _parse_confidence_scores,
     _select_best,
 )
-from mnemex.core.types import RLMChatCompletion, UsageSummary
+from prehend.core.types import RLMChatCompletion, UsageSummary
 
 
 class TestChooseMode:
@@ -46,7 +46,7 @@ class TestBuildDirectMessages:
 
 class TestSRLMInit:
     def test_inherits_rlm(self):
-        from mnemex import RLM
+        from prehend import RLM
         assert issubclass(SRLM, RLM)
 
     def test_accepts_srlm_params(self):
@@ -81,7 +81,7 @@ def _make_completion(response: str, exec_time: float) -> RLMChatCompletion:
 def _make_completion_with_tokens(
     response: str, exec_time: float, out_tokens: int
 ) -> RLMChatCompletion:
-    from mnemex.core.types import ModelUsageSummary
+    from prehend.core.types import ModelUsageSummary
 
     return RLMChatCompletion(
         root_model="test",
@@ -100,13 +100,13 @@ def _make_completion_with_tokens(
 
 class TestTraceLen:
     def test_uses_output_tokens_when_available(self):
-        from mnemex.core.srlm import _trace_len
+        from prehend.core.srlm import _trace_len
 
         c = _make_completion_with_tokens("42", exec_time=9.0, out_tokens=350)
         assert _trace_len(c) == 350
 
     def test_falls_back_to_execution_time_without_usage(self):
-        from mnemex.core.srlm import _trace_len
+        from prehend.core.srlm import _trace_len
 
         c = _make_completion("42", exec_time=2.5)
         assert _trace_len(c) == 2.5
@@ -154,22 +154,22 @@ class TestSelectBest:
 
 class TestNormalizeAnswer:
     def test_case_and_whitespace(self):
-        from mnemex.core.srlm import _normalize_answer
+        from prehend.core.srlm import _normalize_answer
 
         assert _normalize_answer("  The   Answer ") == "the answer"
 
     def test_strips_surrounding_quotes(self):
-        from mnemex.core.srlm import _normalize_answer
+        from prehend.core.srlm import _normalize_answer
 
         assert _normalize_answer('"42"') == "42"
 
     def test_strips_trailing_punctuation(self):
-        from mnemex.core.srlm import _normalize_answer
+        from prehend.core.srlm import _normalize_answer
 
         assert _normalize_answer("It is covered.") == "it is covered"
 
     def test_numeric_forms_canonicalize(self):
-        from mnemex.core.srlm import _normalize_answer
+        from prehend.core.srlm import _normalize_answer
 
         assert _normalize_answer("42.0") == _normalize_answer("42")
         assert _normalize_answer("0.50") == _normalize_answer(".5")
@@ -177,24 +177,24 @@ class TestNormalizeAnswer:
 
 class TestAnswersEquivalent:
     def test_equal_after_normalization(self):
-        from mnemex.core.srlm import _answers_equivalent, _normalize_answer
+        from prehend.core.srlm import _answers_equivalent, _normalize_answer
 
         a = _normalize_answer("YES.")
         b = _normalize_answer("yes")
         assert _answers_equivalent(a, b)
 
     def test_word_boundary_containment(self):
-        from mnemex.core.srlm import _answers_equivalent
+        from prehend.core.srlm import _answers_equivalent
 
         assert _answers_equivalent("42", "the answer is 42")
 
     def test_no_partial_number_match(self):
-        from mnemex.core.srlm import _answers_equivalent
+        from prehend.core.srlm import _answers_equivalent
 
         assert not _answers_equivalent("7", "17")
 
     def test_distinct_answers_not_equivalent(self):
-        from mnemex.core.srlm import _answers_equivalent
+        from prehend.core.srlm import _answers_equivalent
 
         assert not _answers_equivalent("paris", "london")
 
@@ -268,7 +268,7 @@ class TestCandidateTemperature:
         def mock_completion(self_inner, prompt, root_prompt=None):
             extra = self_inner.backend_kwargs.get("default_extra_body", {})
             captured_temps.append(extra.get("temperature"))
-            from mnemex.core.types import RLMChatCompletion, UsageSummary
+            from prehend.core.types import RLMChatCompletion, UsageSummary
             return RLMChatCompletion(
                 root_model="test", prompt=prompt, response="42",
                 usage_summary=UsageSummary(model_usage_summaries={}),
@@ -294,7 +294,7 @@ class TestCandidateTemperature:
         def mock_completion(self_inner, prompt, root_prompt=None):
             extra = self_inner.backend_kwargs.get("default_extra_body", {})
             captured_temps.append(extra.get("temperature"))
-            from mnemex.core.types import RLMChatCompletion, UsageSummary
+            from prehend.core.types import RLMChatCompletion, UsageSummary
             return RLMChatCompletion(
                 root_model="test", prompt=prompt, response="42",
                 usage_summary=UsageSummary(model_usage_summaries={}),
@@ -336,8 +336,8 @@ class TestConfidenceElicitationPrompt:
         """build_rlm_system_prompt .format()s the whole system prompt, so the
         suffix must brace-escape its JSON example. Unescaped '{\"confidence\"...'
         raises KeyError before the first iteration ever runs."""
-        from mnemex.core.types import QueryMetadata
-        from mnemex.utils.prompts import build_rlm_system_prompt
+        from prehend.core.types import QueryMetadata
+        from prehend.utils.prompts import build_rlm_system_prompt
 
         srlm = self._srlm(confidence_elicitation=True)
         messages = build_rlm_system_prompt(

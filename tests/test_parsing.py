@@ -1,8 +1,8 @@
 """Tests for parsing utilities."""
 
-from mnemex.core.types import CodeBlock, REPLResult, RLMIteration
-from mnemex.environments.local_repl import LocalREPL
-from mnemex.utils.parsing import (
+from prehend.core.types import CodeBlock, REPLResult, RLMIteration
+from prehend.environments.local_repl import LocalREPL
+from prehend.utils.parsing import (
     convert_context_for_repl,
     find_code_blocks,
     format_execution_result,

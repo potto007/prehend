@@ -1,9 +1,9 @@
-"""Tests for the mnemex anti-give-up write-time filter."""
+"""Tests for the prehend anti-give-up write-time filter."""
 from __future__ import annotations
 
 import pytest
 
-from mnemex.memory.pruning_rules import is_anti_give_up
+from prehend.memory.pruning_rules import is_anti_give_up
 
 
 @pytest.mark.parametrize("text", [

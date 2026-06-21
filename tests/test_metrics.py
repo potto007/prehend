@@ -6,8 +6,8 @@ import pytest
 
 pytest.importorskip("prometheus_client")
 
-from mnemex import metrics
-from mnemex.core.types import (
+from prehend import metrics
+from prehend.core.types import (
     CodeBlock,
     ModelUsageSummary,
     REPLResult,
@@ -186,7 +186,7 @@ class TestSRLMHooks:
     """The SRLM module's optional metric emitters - no-op-safe and labelled."""
 
     def test_emit_route_records_repl_and_direct(self):
-        from mnemex.core.srlm import _emit_route
+        from prehend.core.srlm import _emit_route
 
         before_repl = _read(metrics.srlm_route_total, route="repl")
         before_direct = _read(metrics.srlm_route_total, route="direct")
@@ -196,7 +196,7 @@ class TestSRLMHooks:
         assert _read(metrics.srlm_route_total, route="direct") == before_direct + 1
 
     def test_emit_candidates_in_flight_sets_gauge(self):
-        from mnemex.core.srlm import _emit_candidates_in_flight
+        from prehend.core.srlm import _emit_candidates_in_flight
 
         _emit_candidates_in_flight(4)
         assert metrics.srlm_candidates_in_flight._value.get() == 4
@@ -204,7 +204,7 @@ class TestSRLMHooks:
         assert metrics.srlm_candidates_in_flight._value.get() == 0
 
     def test_emit_candidate_outcome_counts_each(self):
-        from mnemex.core.srlm import _emit_candidate_outcome
+        from prehend.core.srlm import _emit_candidate_outcome
 
         before_s = _read(metrics.srlm_candidates_used_total, outcome="success")
         before_e = _read(metrics.srlm_candidates_used_total, outcome="error")
@@ -215,7 +215,7 @@ class TestSRLMHooks:
         assert _read(metrics.srlm_candidates_used_total, outcome="error") == before_e + 1
 
     def test_emit_selection_seconds_observes_histogram(self):
-        from mnemex.core.srlm import _emit_selection_seconds
+        from prehend.core.srlm import _emit_selection_seconds
 
         before = metrics.srlm_selection_seconds._sum.get()
         _emit_selection_seconds(0.42)

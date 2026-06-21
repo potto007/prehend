@@ -2,7 +2,7 @@
 stutter -> TypeError 'str' object is not callable) down to '()' BEFORE exec, so the
 known corruption runs as the intended code instead of erroring. Opt-in (default off)."""
 
-from mnemex.environments.local_repl import LocalREPL
+from prehend.environments.local_repl import LocalREPL
 
 
 def test_repair_collapses_stutter_no_error():

@@ -4,9 +4,9 @@ fresh instead of escalating its broken attempt."""
 
 from unittest.mock import Mock, patch
 
-import mnemex.core.rlm as rlm_module
-from mnemex import RLM
-from mnemex.core.types import ModelUsageSummary, UsageSummary
+import prehend.core.rlm as rlm_module
+from prehend import RLM
+from prehend.core.types import ModelUsageSummary, UsageSummary
 
 BROKEN = "```repl\nundefined_variable_xyz_marker\n```"  # NameError -> stderr
 

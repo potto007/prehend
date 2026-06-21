@@ -2,7 +2,7 @@
 
 import os
 
-from mnemex.environments.local_repl import LocalREPL
+from prehend.environments.local_repl import LocalREPL
 
 
 class TestLocalREPLBasic:

@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mnemex.core.comms_utils import LMRequest, send_lm_request, send_lm_request_batched
-from mnemex.core.lm_handler import LMHandler
-from mnemex.utils.exceptions import CancellationError, TimeoutExceededError
+from prehend.core.comms_utils import LMRequest, send_lm_request, send_lm_request_batched
+from prehend.core.lm_handler import LMHandler
+from prehend.utils.exceptions import CancellationError, TimeoutExceededError
 from tests.mock_lm import MockLM
 
 # ---------------------------------------------------------------------------
@@ -74,8 +74,8 @@ def test_root_limit_does_not_leak_into_subcalls():
 
 
 def test_rlm_wires_root_max_tokens_through_to_root_calls():
-    import mnemex.core.rlm as rlm_module
-    from mnemex import RLM
+    import prehend.core.rlm as rlm_module
+    from prehend import RLM
     from tests.test_subcall import create_mock_lm, final
 
     with patch.object(rlm_module, "get_client") as mock_get_client:
@@ -156,8 +156,8 @@ def test_decode_ceiling_can_be_disabled():
 
 def test_rlm_applies_default_decode_ceiling_to_root():
     """An RLM constructed with no token caps still bounds its root calls."""
-    import mnemex.core.rlm as rlm_module
-    from mnemex import RLM
+    import prehend.core.rlm as rlm_module
+    from prehend import RLM
     from tests.test_subcall import create_mock_lm, final
 
     with patch.object(rlm_module, "get_client") as mock_get_client:
@@ -173,7 +173,7 @@ def test_srlm_candidate_inherits_decode_ceiling():
     """SRLM K>1 spawns candidate RLMs via _spawn_candidate_rlm, which historically
     dropped the token caps - so candidates ran uncapped. The ceiling must reach
     them (the custom value proves forwarding, not just the RLM default)."""
-    from mnemex import SRLM
+    from prehend import SRLM
 
     srlm = SRLM(
         backend="openai",
@@ -193,7 +193,7 @@ def test_srlm_candidate_inherits_all_caller_guards():
     proves forwarding, not coincidental library defaults. This is the regression
     guard the hand-maintained _spawn_candidate_rlm arg list lacked: a new RLM
     guard added without forwarding it to candidates fails here."""
-    from mnemex import SRLM
+    from prehend import SRLM
 
     verifier = object()  # subcall_verifier is stored/forwarded by reference
     answer_check = object()  # answer_verifier likewise
@@ -242,10 +242,10 @@ def test_srlm_candidate_inherits_all_caller_guards():
 
 
 def _patched_openai_client(**kwargs):
-    from mnemex.clients.openai import OpenAIClient
+    from prehend.clients.openai import OpenAIClient
 
-    with patch("mnemex.clients.openai.openai.OpenAI"), patch(
-        "mnemex.clients.openai.openai.AsyncOpenAI"
+    with patch("prehend.clients.openai.openai.OpenAI"), patch(
+        "prehend.clients.openai.openai.AsyncOpenAI"
     ):
         return OpenAIClient(api_key="test-key", model_name="m", **kwargs)
 
@@ -473,20 +473,20 @@ _LEGIT_REASONING = (
 
 @pytest.mark.parametrize("text", [_LOOP_EXACT, _LOOP_NOPROGRESS])
 def test_reasoning_is_looping_detects_degeneration(text):
-    from mnemex.clients.openai import _reasoning_is_looping
+    from prehend.clients.openai import _reasoning_is_looping
 
     assert _reasoning_is_looping(text, threshold=0.35)
 
 
 def test_reasoning_is_looping_passes_legit_reasoning():
-    from mnemex.clients.openai import _reasoning_is_looping
+    from prehend.clients.openai import _reasoning_is_looping
 
     assert not _reasoning_is_looping(_LEGIT_REASONING, threshold=0.35)
 
 
 def test_reasoning_is_looping_ignores_short_text():
     # below the min-words floor we cannot judge yet: never fire early on a few words
-    from mnemex.clients.openai import _reasoning_is_looping
+    from prehend.clients.openai import _reasoning_is_looping
 
     assert not _reasoning_is_looping("loop loop loop loop", threshold=0.35)
 
@@ -578,7 +578,7 @@ def test_repeat_guard_does_not_fire_once_content_is_flowing():
 
 
 def test_reasoning_only_response_returns_tagged_fallback():
-    from mnemex.clients.openai import _resolve_content
+    from prehend.clients.openai import _resolve_content
 
     out = _resolve_content("", "step 1... step 2... conclusion: None.")
     assert out.startswith("[reasoning-only response")
@@ -586,20 +586,20 @@ def test_reasoning_only_response_returns_tagged_fallback():
 
 
 def test_reasoning_fallback_is_bounded():
-    from mnemex.clients.openai import _resolve_content
+    from prehend.clients.openai import _resolve_content
 
     out = _resolve_content("", "x" * 100_000)
     assert len(out) < 3000
 
 
 def test_content_wins_over_reasoning():
-    from mnemex.clients.openai import _resolve_content
+    from prehend.clients.openai import _resolve_content
 
     assert _resolve_content("the answer", "thinking...") == "the answer"
 
 
 def test_empty_content_no_reasoning_stays_empty():
-    from mnemex.clients.openai import _resolve_content
+    from prehend.clients.openai import _resolve_content
 
     assert _resolve_content("", None) == ""
 
@@ -630,8 +630,8 @@ def test_nonstream_completion_falls_back_to_reasoning_content():
 def test_leaf_fallback_applies_subcall_guards():
     import time
 
-    import mnemex.core.rlm as rlm_module
-    from mnemex import RLM
+    import prehend.core.rlm as rlm_module
+    from prehend import RLM
 
     with patch.object(rlm_module, "get_client") as mock_get_client:
         mock_lm = MockLM(responses=["leaf response"])

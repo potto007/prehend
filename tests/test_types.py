@@ -1,6 +1,6 @@
 """Tests for core types."""
 
-from mnemex.core.types import (
+from prehend.core.types import (
     CodeBlock,
     ModelUsageSummary,
     QueryMetadata,

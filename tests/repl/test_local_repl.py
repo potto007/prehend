@@ -1,4 +1,4 @@
-from mnemex.environments.local_repl import LocalREPL
+from prehend.environments.local_repl import LocalREPL
 
 
 def test_persistent_execution():

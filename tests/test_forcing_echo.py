@@ -7,8 +7,8 @@ removes that leading echo; _default_answer returns the cleaned text.
 
 from unittest.mock import patch
 
-from mnemex import RLM
-from mnemex.core.rlm import _FORCE_FINAL_MSG, _strip_forcing_echo
+from prehend import RLM
+from prehend.core.rlm import _FORCE_FINAL_MSG, _strip_forcing_echo
 from tests.mock_lm import MockLM
 
 
@@ -52,6 +52,6 @@ def test_default_answer_returns_stripped_answer_end_to_end():
         return "working notes"
 
     mock = MockLM(response_fn=respond)
-    with patch("mnemex.core.rlm.get_client", return_value=mock):
+    with patch("prehend.core.rlm.get_client", return_value=mock):
         result = _rlm().completion("hard question")
     assert result.response == "Nine services are required [002, 012]."

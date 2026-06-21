@@ -1,9 +1,9 @@
-"""Tests for the mnemex embedding helpers."""
+"""Tests for the prehend embedding helpers."""
 from __future__ import annotations
 
 import math
 
-from mnemex.memory.embed import EmbeddingBackend, HashingEmbeddingBackend, cosine
+from prehend.memory.embed import EmbeddingBackend, HashingEmbeddingBackend, cosine
 
 
 def test_cosine_of_identical_vectors_is_one():

@@ -1,8 +1,8 @@
-"""Tests for mnemex retrieval (cosine ranking over the bank)."""
+"""Tests for prehend retrieval (cosine ranking over the bank)."""
 from __future__ import annotations
 
-from mnemex.memory.bank import Bank
-from mnemex.memory.retrieve import retrieve
+from prehend.memory.bank import Bank
+from prehend.memory.retrieve import retrieve
 
 
 class FakeBackend:

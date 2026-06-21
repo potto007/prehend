@@ -11,8 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
-from mnemex import RLM
-from mnemex.utils.exceptions import TimeoutExceededError
+from prehend import RLM
+from prehend.utils.exceptions import TimeoutExceededError
 from tests.mock_lm import MockLM
 
 ITERATION_NOTES = "Working notes: doc 006 covers the licensing rule."
@@ -38,7 +38,7 @@ def test_timeout_during_default_answer_carries_partial():
         return ITERATION_NOTES
 
     mock = MockLM(response_fn=respond)
-    with patch("mnemex.core.rlm.get_client", return_value=mock):
+    with patch("prehend.core.rlm.get_client", return_value=mock):
         with pytest.raises(TimeoutExceededError) as excinfo:
             _rlm(max_iterations=1).completion("hard question")
     assert excinfo.value.partial_answer == ITERATION_NOTES
@@ -56,7 +56,7 @@ def test_timeout_mid_iteration_carries_partial():
         raise TimeoutExceededError(elapsed=301.0, timeout=300.0)
 
     mock = MockLM(response_fn=respond)
-    with patch("mnemex.core.rlm.get_client", return_value=mock):
+    with patch("prehend.core.rlm.get_client", return_value=mock):
         with pytest.raises(TimeoutExceededError) as excinfo:
             _rlm(max_iterations=3).completion("hard question")
     assert excinfo.value.partial_answer == ITERATION_NOTES

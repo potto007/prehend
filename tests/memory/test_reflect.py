@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from mnemex.memory.reflect import OpenAIReflectFn
+from prehend.memory.reflect import OpenAIReflectFn
 
 
 class FakeChatCompletions:

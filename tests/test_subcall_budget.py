@@ -6,13 +6,13 @@ budget stopped it - collapsing answerable asks into refusals, inflating tail
 latency, and escaping the soft-budget. A hard per-completion sub-call cap
 (max_subcalls) short-circuits further reads once breached, returning a wrap-up
 instruction instead of hitting the server, so the model must answer from what it
-has already gathered. Default off (None) in mnemex; the librarian sets the value.
+has already gathered. Default off (None) in prehend; the librarian sets the value.
 """
 
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from mnemex.environments.local_repl import (
+from prehend.environments.local_repl import (
     _SUBCALL_BUDGET_MSG,
     LocalREPL,
     _subcall_budget_remaining,
@@ -44,7 +44,7 @@ def _ok(_addr, _req):
 
 def test_llm_query_blocks_after_cap():
     env = _env(max_subcalls=2)
-    with patch("mnemex.environments.local_repl.send_lm_request", side_effect=_ok) as send:
+    with patch("prehend.environments.local_repl.send_lm_request", side_effect=_ok) as send:
         r1 = env._llm_query("read doc 1")
         r2 = env._llm_query("read doc 2")
         r3 = env._llm_query("read doc 3")  # over budget -> blocked
@@ -56,7 +56,7 @@ def test_llm_query_blocks_after_cap():
 
 def test_llm_query_unlimited_when_disabled():
     env = _env()  # max_subcalls default None
-    with patch("mnemex.environments.local_repl.send_lm_request", side_effect=_ok) as send:
+    with patch("prehend.environments.local_repl.send_lm_request", side_effect=_ok) as send:
         for _ in range(10):
             assert env._llm_query("q") == "DOC TEXT"
     assert send.call_count == 10
@@ -74,7 +74,7 @@ def _ok_batched(_addr, prompts, **kw):
 def test_llm_query_batched_partitions_at_cap():
     env = _env(max_subcalls=2)
     with patch(
-        "mnemex.environments.local_repl.send_lm_request_batched", side_effect=_ok_batched
+        "prehend.environments.local_repl.send_lm_request_batched", side_effect=_ok_batched
     ) as send:
         results = env._llm_query_batched(["a", "b", "c", "d"])
     # first 2 dispatched, last 2 blocked with the budget message, order preserved
@@ -88,10 +88,10 @@ def test_llm_query_batched_partitions_at_cap():
 
 def test_llm_query_batched_all_blocked_when_already_exhausted():
     env = _env(max_subcalls=1)
-    with patch("mnemex.environments.local_repl.send_lm_request", side_effect=_ok):
+    with patch("prehend.environments.local_repl.send_lm_request", side_effect=_ok):
         env._llm_query("burn the one allowed call")
     with patch(
-        "mnemex.environments.local_repl.send_lm_request_batched", side_effect=_ok_batched
+        "prehend.environments.local_repl.send_lm_request_batched", side_effect=_ok_batched
     ) as send:
         results = env._llm_query_batched(["a", "b"])
     assert all(_SUBCALL_BUDGET_MSG[:20] in r for r in results)
@@ -100,8 +100,8 @@ def test_llm_query_batched_all_blocked_when_already_exhausted():
 
 def test_count_is_shared_across_query_and_batched():
     env = _env(max_subcalls=3)
-    with patch("mnemex.environments.local_repl.send_lm_request", side_effect=_ok), patch(
-        "mnemex.environments.local_repl.send_lm_request_batched", side_effect=_ok_batched
+    with patch("prehend.environments.local_repl.send_lm_request", side_effect=_ok), patch(
+        "prehend.environments.local_repl.send_lm_request_batched", side_effect=_ok_batched
     ) as sendb:
         env._llm_query("one")  # count -> 1
         results = env._llm_query_batched(["two", "three", "four"])  # remaining 2

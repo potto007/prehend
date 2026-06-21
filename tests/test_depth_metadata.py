@@ -8,11 +8,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-import mnemex.core.rlm as rlm_module
-from mnemex import RLM
-from mnemex.core.types import ModelUsageSummary, UsageSummary
-from mnemex.logger import RLMLogger
-from mnemex.utils.exceptions import (
+import prehend.core.rlm as rlm_module
+from prehend import RLM
+from prehend.core.types import ModelUsageSummary, UsageSummary
+from prehend.logger import RLMLogger
+from prehend.utils.exceptions import (
     BudgetExceededError,
     ErrorThresholdExceededError,
     TimeoutExceededError,
@@ -185,7 +185,7 @@ class TestDepth1LimitChecks:
 
     def test_error_threshold_check(self):
         """_check_iteration_limits should raise on consecutive errors."""
-        from mnemex.core.types import CodeBlock, REPLResult, RLMIteration
+        from prehend.core.types import CodeBlock, REPLResult, RLMIteration
 
         rlm = RLM(
             backend="openai",
@@ -219,7 +219,7 @@ class TestDepth1LimitChecks:
 
     def test_error_count_resets_on_success(self):
         """Consecutive error count should reset on a successful iteration."""
-        from mnemex.core.types import CodeBlock, REPLResult, RLMIteration
+        from prehend.core.types import CodeBlock, REPLResult, RLMIteration
 
         rlm = RLM(
             backend="openai",
@@ -257,7 +257,7 @@ class TestDepth1LimitChecks:
 
     def test_budget_check_raises(self):
         """_check_iteration_limits should raise BudgetExceededError when budget exceeded."""
-        from mnemex.core.types import RLMIteration
+        from prehend.core.types import RLMIteration
 
         rlm = RLM(
             backend="openai",
@@ -286,7 +286,7 @@ class TestDepth1LimitChecks:
 
     def test_token_limit_check_raises(self):
         """_check_iteration_limits should raise TokenLimitExceededError when tokens exceeded."""
-        from mnemex.core.types import RLMIteration
+        from prehend.core.types import RLMIteration
 
         rlm = RLM(
             backend="openai",

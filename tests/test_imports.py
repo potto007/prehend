@@ -11,21 +11,21 @@ class TestTopLevelImports:
     """Test top-level package imports."""
 
     def test_rlm_import(self):
-        """Test that main mnemex package can be imported."""
-        import mnemex
+        """Test that main prehend package can be imported."""
+        import prehend
 
-        assert hasattr(mnemex, "RLM")
-        assert "RLM" in mnemex.__all__
+        assert hasattr(prehend, "RLM")
+        assert "RLM" in prehend.__all__
 
     def test_rlm_rlm_import(self):
-        """Test that RLM class can be imported from mnemex."""
-        from mnemex import RLM
+        """Test that RLM class can be imported from prehend."""
+        from prehend import RLM
 
         assert RLM is not None
 
     def test_rlm_core_rlm_import(self):
-        """Test that RLM can be imported from mnemex.core.rlm."""
-        from mnemex.core.rlm import RLM
+        """Test that RLM can be imported from prehend.core.rlm."""
+        from prehend.core.rlm import RLM
 
         assert RLM is not None
 
@@ -35,41 +35,41 @@ class TestClientImports:
 
     def test_clients_module_import(self):
         """Test that clients module can be imported."""
-        import mnemex.clients
+        import prehend.clients
 
-        assert hasattr(mnemex.clients, "get_client")
-        assert hasattr(mnemex.clients, "BaseLM")
+        assert hasattr(prehend.clients, "get_client")
+        assert hasattr(prehend.clients, "BaseLM")
 
     def test_base_lm_import(self):
         """Test BaseLM import."""
-        from mnemex.clients.base_lm import BaseLM
+        from prehend.clients.base_lm import BaseLM
 
         assert BaseLM is not None
 
     def test_openai_client_import(self):
         """Test OpenAIClient import."""
         pytest.importorskip("openai")
-        from mnemex.clients.openai import OpenAIClient
+        from prehend.clients.openai import OpenAIClient
 
         assert OpenAIClient is not None
 
     def test_anthropic_client_import(self):
         """Test AnthropicClient import."""
         pytest.importorskip("anthropic")
-        from mnemex.clients.anthropic import AnthropicClient
+        from prehend.clients.anthropic import AnthropicClient
 
         assert AnthropicClient is not None
 
     def test_portkey_client_import(self):
         """Test PortkeyClient import."""
         pytest.importorskip("portkey_ai")
-        from mnemex.clients.portkey import PortkeyClient
+        from prehend.clients.portkey import PortkeyClient
 
         assert PortkeyClient is not None
 
     def test_get_client_function(self):
         """Test get_client function import."""
-        from mnemex.clients import get_client
+        from prehend.clients import get_client
 
         assert callable(get_client)
 
@@ -79,7 +79,7 @@ class TestCoreImports:
 
     def test_core_types_import(self):
         """Test core types imports."""
-        from mnemex.core.types import (
+        from prehend.core.types import (
             ClientBackend,
             CodeBlock,
             ModelUsageSummary,
@@ -101,19 +101,19 @@ class TestCoreImports:
 
     def test_core_rlm_import(self):
         """Test core RLM import."""
-        from mnemex.core.rlm import RLM
+        from prehend.core.rlm import RLM
 
         assert RLM is not None
 
     def test_core_lm_handler_import(self):
         """Test LMHandler import."""
-        from mnemex.core.lm_handler import LMHandler
+        from prehend.core.lm_handler import LMHandler
 
         assert LMHandler is not None
 
     def test_core_comms_utils_import(self):
         """Test comms_utils imports."""
-        from mnemex.core.comms_utils import (
+        from prehend.core.comms_utils import (
             LMRequest,
             LMResponse,
             send_lm_request,
@@ -135,15 +135,15 @@ class TestEnvironmentImports:
 
     def test_environments_module_import(self):
         """Test that environments module can be imported."""
-        import mnemex.environments
+        import prehend.environments
 
-        assert hasattr(mnemex.environments, "get_environment")
-        assert hasattr(mnemex.environments, "BaseEnv")
-        assert hasattr(mnemex.environments, "LocalREPL")
+        assert hasattr(prehend.environments, "get_environment")
+        assert hasattr(prehend.environments, "BaseEnv")
+        assert hasattr(prehend.environments, "LocalREPL")
 
     def test_base_env_import(self):
         """Test BaseEnv import."""
-        from mnemex.environments.base_env import BaseEnv, IsolatedEnv, NonIsolatedEnv
+        from prehend.environments.base_env import BaseEnv, IsolatedEnv, NonIsolatedEnv
 
         assert BaseEnv is not None
         assert IsolatedEnv is not None
@@ -151,33 +151,33 @@ class TestEnvironmentImports:
 
     def test_local_repl_import(self):
         """Test LocalREPL import."""
-        from mnemex.environments.local_repl import LocalREPL
+        from prehend.environments.local_repl import LocalREPL
 
         assert LocalREPL is not None
 
     def test_modal_repl_import(self):
         """Test ModalREPL import."""
         pytest.importorskip("modal")
-        from mnemex.environments.modal_repl import ModalREPL
+        from prehend.environments.modal_repl import ModalREPL
 
         assert ModalREPL is not None
 
     def test_docker_repl_import(self):
         """Test DockerREPL import."""
-        from mnemex.environments.docker_repl import DockerREPL
+        from prehend.environments.docker_repl import DockerREPL
 
         assert DockerREPL is not None
 
     def test_prime_repl_import(self):
         """Test PrimeREPL import."""
         pytest.importorskip("prime_sandboxes")
-        from mnemex.environments.prime_repl import PrimeREPL
+        from prehend.environments.prime_repl import PrimeREPL
 
         assert PrimeREPL is not None
 
     def test_get_environment_function(self):
         """Test get_environment function import."""
-        from mnemex.environments import get_environment
+        from prehend.environments import get_environment
 
         assert callable(get_environment)
 
@@ -187,22 +187,22 @@ class TestLoggerImports:
 
     def test_logger_module_import(self):
         """Test that logger module can be imported."""
-        import mnemex.logger
+        import prehend.logger
 
-        assert hasattr(mnemex.logger, "RLMLogger")
-        assert hasattr(mnemex.logger, "VerbosePrinter")
-        assert "RLMLogger" in mnemex.logger.__all__
-        assert "VerbosePrinter" in mnemex.logger.__all__
+        assert hasattr(prehend.logger, "RLMLogger")
+        assert hasattr(prehend.logger, "VerbosePrinter")
+        assert "RLMLogger" in prehend.logger.__all__
+        assert "VerbosePrinter" in prehend.logger.__all__
 
     def test_rlm_logger_import(self):
         """Test RLMLogger import."""
-        from mnemex.logger.rlm_logger import RLMLogger
+        from prehend.logger.rlm_logger import RLMLogger
 
         assert RLMLogger is not None
 
     def test_verbose_import(self):
         """Test VerbosePrinter import."""
-        from mnemex.logger.verbose import VerbosePrinter
+        from prehend.logger.verbose import VerbosePrinter
 
         assert VerbosePrinter is not None
 
@@ -212,7 +212,7 @@ class TestUtilsImports:
 
     def test_parsing_import(self):
         """Test parsing module import."""
-        from mnemex.utils.parsing import (
+        from prehend.utils.parsing import (
             find_code_blocks,
             format_execution_result,
             format_iteration,
@@ -224,7 +224,7 @@ class TestUtilsImports:
 
     def test_prompts_import(self):
         """Test prompts module import."""
-        from mnemex.utils.prompts import (
+        from prehend.utils.prompts import (
             RLM_SYSTEM_PROMPT,
             USER_PROMPT,
             build_rlm_system_prompt,
@@ -238,7 +238,7 @@ class TestUtilsImports:
 
     def test_rlm_utils_import(self):
         """Test rlm_utils module import."""
-        from mnemex.utils.rlm_utils import filter_sensitive_keys
+        from prehend.utils.rlm_utils import filter_sensitive_keys
 
         assert callable(filter_sensitive_keys)
 
@@ -247,40 +247,40 @@ class TestImportConflicts:
     """Test for import conflicts and naming issues."""
 
     def test_no_duplicate_names_in_rlm_all(self):
-        """Test that __all__ in mnemex.__init__ has no duplicates."""
-        import mnemex
+        """Test that __all__ in prehend.__init__ has no duplicates."""
+        import prehend
 
-        if hasattr(mnemex, "__all__"):
-            all_items = mnemex.__all__
+        if hasattr(prehend, "__all__"):
+            all_items = prehend.__all__
             assert len(all_items) == len(set(all_items)), (
-                f"Duplicate items in mnemex.__all__: {all_items}"
+                f"Duplicate items in prehend.__all__: {all_items}"
             )
 
     def test_no_duplicate_names_in_logger_all(self):
-        """Test that __all__ in mnemex.logger.__init__ has no duplicates."""
-        import mnemex.logger
+        """Test that __all__ in prehend.logger.__init__ has no duplicates."""
+        import prehend.logger
 
-        if hasattr(mnemex.logger, "__all__"):
-            all_items = mnemex.logger.__all__
+        if hasattr(prehend.logger, "__all__"):
+            all_items = prehend.logger.__all__
             assert len(all_items) == len(set(all_items)), (
-                f"Duplicate items in mnemex.logger.__all__: {all_items}"
+                f"Duplicate items in prehend.logger.__all__: {all_items}"
             )
 
     def test_all_declarations_match_exports(self):
         """Test that __all__ declarations match actual exports."""
-        import mnemex
-        import mnemex.logger
+        import prehend
+        import prehend.logger
 
-        # Test mnemex.__all__
-        if hasattr(mnemex, "__all__"):
-            for name in mnemex.__all__:
-                assert hasattr(mnemex, name), f"mnemex.__all__ declares '{name}' but it's not exported"
+        # Test prehend.__all__
+        if hasattr(prehend, "__all__"):
+            for name in prehend.__all__:
+                assert hasattr(prehend, name), f"prehend.__all__ declares '{name}' but it's not exported"
 
-        # Test mnemex.logger.__all__
-        if hasattr(mnemex.logger, "__all__"):
-            for name in mnemex.logger.__all__:
-                assert hasattr(mnemex.logger, name), (
-                    f"mnemex.logger.__all__ declares '{name}' but it's not exported"
+        # Test prehend.logger.__all__
+        if hasattr(prehend.logger, "__all__"):
+            for name in prehend.logger.__all__:
+                assert hasattr(prehend.logger, name), (
+                    f"prehend.logger.__all__ declares '{name}' but it's not exported"
                 )
 
     def test_no_circular_imports(self):
@@ -292,34 +292,34 @@ class TestImportConflicts:
         checks for every test that runs afterwards."""
         # Core modules that should always be importable
         core_modules = [
-            "mnemex",
-            "mnemex.clients",
-            "mnemex.clients.base_lm",
-            "mnemex.core",
-            "mnemex.core.types",
-            "mnemex.core.rlm",
-            "mnemex.core.lm_handler",
-            "mnemex.core.comms_utils",
-            "mnemex.environments",
-            "mnemex.environments.base_env",
-            "mnemex.environments.local_repl",
-            "mnemex.environments.docker_repl",
-            "mnemex.logger",
-            "mnemex.logger.rlm_logger",
-            "mnemex.logger.verbose",
-            "mnemex.utils",
-            "mnemex.utils.parsing",
-            "mnemex.utils.prompts",
-            "mnemex.utils.rlm_utils",
+            "prehend",
+            "prehend.clients",
+            "prehend.clients.base_lm",
+            "prehend.core",
+            "prehend.core.types",
+            "prehend.core.rlm",
+            "prehend.core.lm_handler",
+            "prehend.core.comms_utils",
+            "prehend.environments",
+            "prehend.environments.base_env",
+            "prehend.environments.local_repl",
+            "prehend.environments.docker_repl",
+            "prehend.logger",
+            "prehend.logger.rlm_logger",
+            "prehend.logger.verbose",
+            "prehend.utils",
+            "prehend.utils.parsing",
+            "prehend.utils.prompts",
+            "prehend.utils.rlm_utils",
         ]
 
         # Optional modules imported only when their dependency is available
         optional_modules = [
-            ("mnemex.clients.openai", "openai"),
-            ("mnemex.clients.anthropic", "anthropic"),
-            ("mnemex.clients.portkey", "portkey_ai"),
-            ("mnemex.environments.modal_repl", "modal"),
-            ("mnemex.environments.prime_repl", "prime_sandboxes"),
+            ("prehend.clients.openai", "openai"),
+            ("prehend.clients.anthropic", "anthropic"),
+            ("prehend.clients.portkey", "portkey_ai"),
+            ("prehend.environments.modal_repl", "modal"),
+            ("prehend.environments.prime_repl", "prime_sandboxes"),
         ]
 
         script = (
@@ -344,35 +344,35 @@ class TestImportConflicts:
         module_exports: dict[str, set[str]] = {}
 
         # Check main modules
-        import mnemex
-        import mnemex.clients
-        import mnemex.environments
-        import mnemex.logger
+        import prehend
+        import prehend.clients
+        import prehend.environments
+        import prehend.logger
 
-        if hasattr(mnemex, "__all__"):
-            module_exports["mnemex"] = set(mnemex.__all__)
+        if hasattr(prehend, "__all__"):
+            module_exports["prehend"] = set(prehend.__all__)
         else:
-            module_exports["mnemex"] = {name for name in dir(mnemex) if not name.startswith("_")}
+            module_exports["prehend"] = {name for name in dir(prehend) if not name.startswith("_")}
 
-        if hasattr(mnemex.clients, "__all__"):
-            module_exports["mnemex.clients"] = set(mnemex.clients.__all__)
+        if hasattr(prehend.clients, "__all__"):
+            module_exports["prehend.clients"] = set(prehend.clients.__all__)
         else:
-            module_exports["mnemex.clients"] = {
-                name for name in dir(mnemex.clients) if not name.startswith("_")
+            module_exports["prehend.clients"] = {
+                name for name in dir(prehend.clients) if not name.startswith("_")
             }
 
-        if hasattr(mnemex.environments, "__all__"):
-            module_exports["mnemex.environments"] = set(mnemex.environments.__all__)
+        if hasattr(prehend.environments, "__all__"):
+            module_exports["prehend.environments"] = set(prehend.environments.__all__)
         else:
-            module_exports["mnemex.environments"] = {
-                name for name in dir(mnemex.environments) if not name.startswith("_")
+            module_exports["prehend.environments"] = {
+                name for name in dir(prehend.environments) if not name.startswith("_")
             }
 
-        if hasattr(mnemex.logger, "__all__"):
-            module_exports["mnemex.logger"] = set(mnemex.logger.__all__)
+        if hasattr(prehend.logger, "__all__"):
+            module_exports["prehend.logger"] = set(prehend.logger.__all__)
         else:
-            module_exports["mnemex.logger"] = {
-                name for name in dir(mnemex.logger) if not name.startswith("_")
+            module_exports["prehend.logger"] = {
+                name for name in dir(prehend.logger) if not name.startswith("_")
             }
 
         # Check for conflicts (same name in multiple modules)
@@ -418,7 +418,7 @@ class TestImportCompleteness:
 
     def test_all_client_classes_importable(self):
         """Test that all client classes can be imported."""
-        from mnemex.clients.base_lm import BaseLM
+        from prehend.clients.base_lm import BaseLM
 
         # Verify BaseLM is a class
         assert isinstance(BaseLM, type)
@@ -426,7 +426,7 @@ class TestImportCompleteness:
         # Test optional client classes
         try:
             pytest.importorskip("openai")
-            from mnemex.clients.openai import OpenAIClient
+            from prehend.clients.openai import OpenAIClient
 
             assert isinstance(OpenAIClient, type)
         except Exception:
@@ -434,7 +434,7 @@ class TestImportCompleteness:
 
         try:
             pytest.importorskip("anthropic")
-            from mnemex.clients.anthropic import AnthropicClient
+            from prehend.clients.anthropic import AnthropicClient
 
             assert isinstance(AnthropicClient, type)
         except Exception:
@@ -442,7 +442,7 @@ class TestImportCompleteness:
 
         try:
             pytest.importorskip("portkey_ai")
-            from mnemex.clients.portkey import PortkeyClient
+            from prehend.clients.portkey import PortkeyClient
 
             assert isinstance(PortkeyClient, type)
         except Exception:
@@ -450,9 +450,9 @@ class TestImportCompleteness:
 
     def test_all_environment_classes_importable(self):
         """Test that all environment classes can be imported."""
-        from mnemex.environments.base_env import BaseEnv, IsolatedEnv, NonIsolatedEnv
-        from mnemex.environments.docker_repl import DockerREPL
-        from mnemex.environments.local_repl import LocalREPL
+        from prehend.environments.base_env import BaseEnv, IsolatedEnv, NonIsolatedEnv
+        from prehend.environments.docker_repl import DockerREPL
+        from prehend.environments.local_repl import LocalREPL
 
         # Verify they're all classes
         assert isinstance(BaseEnv, type)
@@ -464,7 +464,7 @@ class TestImportCompleteness:
         # Test optional ModalREPL
         try:
             pytest.importorskip("modal")
-            from mnemex.environments.modal_repl import ModalREPL
+            from prehend.environments.modal_repl import ModalREPL
 
             assert isinstance(ModalREPL, type)
         except Exception:
@@ -473,7 +473,7 @@ class TestImportCompleteness:
         # Test optional PrimeREPL
         try:
             pytest.importorskip("prime_sandboxes")
-            from mnemex.environments.prime_repl import PrimeREPL
+            from prehend.environments.prime_repl import PrimeREPL
 
             assert isinstance(PrimeREPL, type)
         except Exception:

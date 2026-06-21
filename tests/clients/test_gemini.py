@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from dotenv import load_dotenv
 
-from mnemex.clients.gemini import GeminiClient
-from mnemex.core.types import ModelUsageSummary, UsageSummary
+from prehend.clients.gemini import GeminiClient
+from prehend.core.types import ModelUsageSummary, UsageSummary
 
 load_dotenv()
 
@@ -17,26 +17,26 @@ class TestGeminiClientUnit:
 
     def test_init_with_api_key(self):
         """Test client initialization with explicit API key."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key", model_name="gemini-2.5-flash")
             assert client.model_name == "gemini-2.5-flash"
 
     def test_init_default_model(self):
         """Test client uses default model name."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key")
             assert client.model_name == "gemini-2.5-flash"
 
     def test_init_requires_api_key(self):
         """Test client raises error when no API key provided."""
         with patch.dict(os.environ, {}, clear=True):
-            with patch("mnemex.clients.gemini.DEFAULT_GEMINI_API_KEY", None):
+            with patch("prehend.clients.gemini.DEFAULT_GEMINI_API_KEY", None):
                 with pytest.raises(ValueError, match="Gemini API key is required"):
                     GeminiClient(api_key=None)
 
     def test_usage_tracking_initialization(self):
         """Test that usage tracking is properly initialized."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key")
             assert client.model_call_counts == {}
             assert client.model_input_tokens == {}
@@ -46,7 +46,7 @@ class TestGeminiClientUnit:
 
     def test_get_usage_summary_empty(self):
         """Test usage summary when no calls have been made."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key")
             summary = client.get_usage_summary()
             assert isinstance(summary, UsageSummary)
@@ -54,7 +54,7 @@ class TestGeminiClientUnit:
 
     def test_get_last_usage(self):
         """Test last usage returns correct format."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key")
             client.last_prompt_tokens = 100
             client.last_completion_tokens = 50
@@ -66,7 +66,7 @@ class TestGeminiClientUnit:
 
     def test_prepare_contents_string(self):
         """Test _prepare_contents with string input."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key")
             contents, system = client._prepare_contents("Hello world")
             assert contents == "Hello world"
@@ -74,7 +74,7 @@ class TestGeminiClientUnit:
 
     def test_prepare_contents_messages_with_system(self):
         """Test _prepare_contents extracts system message."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key")
             messages = [
                 {"role": "system", "content": "You are helpful"},
@@ -87,7 +87,7 @@ class TestGeminiClientUnit:
 
     def test_prepare_contents_role_mapping(self):
         """Test _prepare_contents maps assistant to model."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key")
             messages = [
                 {"role": "user", "content": "Hello"},
@@ -103,14 +103,14 @@ class TestGeminiClientUnit:
 
     def test_prepare_contents_invalid_type(self):
         """Test _prepare_contents raises on invalid input."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key")
             with pytest.raises(ValueError, match="Invalid prompt type"):
                 client._prepare_contents(12345)
 
     def test_completion_requires_model(self):
         """Test completion raises when no model specified."""
-        with patch("mnemex.clients.gemini.genai.Client"):
+        with patch("prehend.clients.gemini.genai.Client"):
             client = GeminiClient(api_key="test-key", model_name=None)
             with pytest.raises(ValueError, match="Model name is required"):
                 client.completion("Hello")
@@ -122,7 +122,7 @@ class TestGeminiClientUnit:
         mock_response.usage_metadata.prompt_token_count = 10
         mock_response.usage_metadata.candidates_token_count = 5
 
-        with patch("mnemex.clients.gemini.genai.Client") as mock_client_class:
+        with patch("prehend.clients.gemini.genai.Client") as mock_client_class:
             mock_client = MagicMock()
             mock_client.models.generate_content.return_value = mock_response
             mock_client_class.return_value = mock_client

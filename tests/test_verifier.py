@@ -4,11 +4,11 @@ docs/superpowers/specs/2026-06-11-strategy-verifier-design.md)."""
 
 from unittest.mock import Mock, patch
 
-import mnemex.core.rlm as rlm_module
-from mnemex import RLM
-from mnemex.core.comms_utils import LMRequest, send_lm_request, send_lm_request_batched
-from mnemex.core.lm_handler import LMHandler
-from mnemex.core.verifier import (
+import prehend.core.rlm as rlm_module
+from prehend import RLM
+from prehend.core.comms_utils import LMRequest, send_lm_request, send_lm_request_batched
+from prehend.core.lm_handler import LMHandler
+from prehend.core.verifier import (
     LMVerifier,
     RuleVerifier,
     SubcallReview,

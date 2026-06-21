@@ -1,7 +1,7 @@
 """Tests for LMHandler using MockLM (no real LM required)."""
 
-from mnemex.core.comms_utils import LMRequest, send_lm_request, send_lm_request_batched
-from mnemex.core.lm_handler import LMHandler
+from prehend.core.comms_utils import LMRequest, send_lm_request, send_lm_request_batched
+from prehend.core.lm_handler import LMHandler
 from tests.mock_lm import MockLM
 
 

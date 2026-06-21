@@ -4,7 +4,7 @@ These tests verify LocalREPL's multi-context and multi-history capabilities
 which support the persistent=True mode in RLM for multi-turn conversations.
 """
 
-from mnemex.environments.local_repl import LocalREPL
+from prehend.environments.local_repl import LocalREPL
 
 
 class TestLocalREPLMultiContext:

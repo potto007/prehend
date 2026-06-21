@@ -9,8 +9,8 @@ import time
 
 import pytest
 
-from mnemex.clients.coordination import CrossProcessGate
-from mnemex.clients.scheduler import Priority
+from prehend.clients.coordination import CrossProcessGate
+from prehend.clients.scheduler import Priority
 
 KEY = "testkey0000000000"
 

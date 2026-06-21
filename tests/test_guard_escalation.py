@@ -1,6 +1,6 @@
 """Repeat-guard escalation (rlm-trainer #6 part 3 follow-up).
 
-The mnemex repeat-guard aborts a single looping leaf completion fast, but an ask
+The prehend repeat-guard aborts a single looping leaf completion fast, but an ask
 can re-enter the loop many times - each abort cheap, the ask still degenerate. Once
 the cumulative guard-abort count for a completion crosses repeat_guard_abort_limit,
 inject the SAME one-time wrap-up message the soft-budget uses, so a persistent
@@ -11,8 +11,8 @@ policy message (its exact no-coverage sentence) and the limit.
 
 from unittest.mock import patch
 
-from mnemex import RLM
-from mnemex.core.rlm import _guard_escalation_due
+from prehend import RLM
+from prehend.core.rlm import _guard_escalation_due
 from tests.mock_lm import MockLM
 
 # ---- pure decision function ---------------------------------------------------
@@ -93,7 +93,7 @@ def test_escalation_message_reaches_model_e2e():
 
     mock = MockLM(response_fn=respond)
     mock.repeat_guard_aborts = 5  # what the OpenAI client would report after 5 aborts
-    with patch("mnemex.core.rlm.get_client", return_value=mock):
+    with patch("prehend.core.rlm.get_client", return_value=mock):
         rlm = RLM(
             backend="openai",
             backend_kwargs={"model_name": "test", "base_url": "http://localhost:9999/v1"},

@@ -9,10 +9,10 @@ import httpx
 import openai as openai_sdk
 import pytest
 
-from mnemex.clients.openai import OpenAIClient, _is_context_contention
-from mnemex.clients.scheduler import Priority, RequestScheduler, resolve_priority
-from mnemex.core.comms_utils import LMRequest
-from mnemex.core.lm_handler import LMHandler
+from prehend.clients.openai import OpenAIClient, _is_context_contention
+from prehend.clients.scheduler import Priority, RequestScheduler, resolve_priority
+from prehend.core.comms_utils import LMRequest
+from prehend.core.lm_handler import LMHandler
 
 
 def wait_until(cond, timeout=2.0, interval=0.005):
@@ -658,8 +658,8 @@ def _ok_response(content="ok"):
 
 
 def _make_client(scheduler=None):
-    with patch("mnemex.clients.openai.openai.OpenAI"):
-        with patch("mnemex.clients.openai.openai.AsyncOpenAI"):
+    with patch("prehend.clients.openai.openai.OpenAI"):
+        with patch("prehend.clients.openai.openai.AsyncOpenAI"):
             return OpenAIClient(api_key="test", model_name="test-model", scheduler=scheduler)
 
 
@@ -1040,8 +1040,8 @@ def test_no_gate_means_no_gate_calls():
 
 
 def _make_url_client(base_url="http://127.0.0.1:8080/v1"):
-    with patch("mnemex.clients.openai.openai.OpenAI"):
-        with patch("mnemex.clients.openai.openai.AsyncOpenAI"):
+    with patch("prehend.clients.openai.openai.OpenAI"):
+        with patch("prehend.clients.openai.openai.AsyncOpenAI"):
             return OpenAIClient(api_key="test", model_name="test-model", base_url=base_url)
 
 
@@ -1077,7 +1077,7 @@ def test_openai_client_stores_base_url():
 
 
 def test_rlm_stores_coordination_dir(tmp_path):
-    from mnemex.core.rlm import RLM
+    from prehend.core.rlm import RLM
 
     rlm = RLM(
         backend_kwargs={"model_name": "m", "api_key": "x"},
