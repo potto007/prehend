@@ -79,6 +79,23 @@ class TestHarnessMemory:
         assert h.solver is not h.srlm
 
 
+class TestHarnessPassthroughs:
+    def test_advanced_knobs_reach_srlm(self):
+        h = _h(direct_threshold=30000, n_candidates=4, candidate_temperature=0.7,
+               candidate_parallel=2, confidence_elicitation=True,
+               scheduler_max_concurrent=4)
+        assert h.srlm.direct_threshold == 30000
+        assert h.srlm.n_candidates == 4
+        assert h.srlm.candidate_temperature == 0.7
+        assert h.srlm.candidate_parallel == 2
+        assert h.srlm.confidence_elicitation is True
+
+    def test_unset_knobs_use_srlm_defaults(self):
+        h = _h()
+        assert h.srlm.direct_threshold == 0    # SRLM default (always-rlm)
+        assert h.srlm.n_candidates == 1        # SRLM default (single trajectory)
+
+
 class TestDetectRuntime:
     def test_clean_probe_returns_runtime(self):
         rt = detect_runtime("http://x/v1", probe=lambda b, k: Runtime(slots=4, ctx=98304))

@@ -105,6 +105,13 @@ class Harness:
         observability: Callable[[object], None] | None = None,
         logger=None,
         memory=None,            # behavior added in Task 4
+        direct_threshold: int | None = None,
+        n_candidates: int | None = None,
+        candidate_temperature: float | None = None,
+        candidate_parallel: int | None = None,
+        confidence_elicitation: bool | None = None,
+        scheduler_max_concurrent: int | None = None,
+        scheduler_coordination_dir: str | None = None,
     ):
         d = defaults or VETTED
         self.runtime = self._resolve_runtime(runtime, base_url, api_key, d)
@@ -143,6 +150,18 @@ class Harness:
             srlm_kwargs["max_answer_retries"] = max_answer_retries
         if custom_tools is not None:
             srlm_kwargs["custom_tools"] = custom_tools
+
+        for _name, _val in (
+            ("direct_threshold", direct_threshold),
+            ("n_candidates", n_candidates),
+            ("candidate_temperature", candidate_temperature),
+            ("candidate_parallel", candidate_parallel),
+            ("confidence_elicitation", confidence_elicitation),
+            ("scheduler_max_concurrent", scheduler_max_concurrent),
+            ("scheduler_coordination_dir", scheduler_coordination_dir),
+        ):
+            if _val is not None:
+                srlm_kwargs[_name] = _val
 
         self.srlm = SRLM(**srlm_kwargs)
         if observability is not None:
