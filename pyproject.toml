@@ -6,7 +6,7 @@ authors = [
 maintainers = [
     {name = "Paul Otto", email = "potto007@gmail.com"},
 ]
-version = "0.2.0"
+version = "0.3.0"
 description = "prehend: a language-model harness that learns - recursive context offload with self-reflective program search and experience memory."
 readme = "README.md"
 license = "MIT"
