@@ -6,7 +6,6 @@ Shows trajectory capture in completion.metadata (and optional save to disk).
 import os
 
 from dotenv import load_dotenv
-
 from rlm import RLM
 from rlm.logger import RLMLogger
 

@@ -12,7 +12,6 @@ from lm_repl.core.lm_handler import LMHandler
 from lm_repl.utils.exceptions import CancellationError, TimeoutExceededError
 from tests.mock_lm import MockLM
 
-
 # ---------------------------------------------------------------------------
 # subcall_max_tokens plumbing (handler -> client)
 # ---------------------------------------------------------------------------

@@ -31,6 +31,8 @@ try:
         Counter,
         Gauge,
         Histogram,
+    )
+    from prometheus_client import (
         start_http_server as _start_http_server,
     )
 except ImportError as e:
@@ -40,7 +42,6 @@ except ImportError as e:
     ) from e
 
 from lm_repl.core.types import RLMIteration, RLMMetadata
-
 
 _PREFIX = "localai_lmrepl_"
 
@@ -204,7 +205,7 @@ class PrometheusLogger:
                 usage = call.usage_summary
                 if usage is None:
                     continue
-                for model_name, summary in usage.model_usage_summaries.items():
+                for _model_name, summary in usage.model_usage_summaries.items():
                     tokens_total.labels(
                         role="worker", kind="child", direction="prompt"
                     ).inc(summary.total_input_tokens or 0)
@@ -312,7 +313,7 @@ class CallScope(AbstractContextManager):
     explicitly provided.
     """
 
-    _active: "set[CallScope]" = set()
+    _active: set[CallScope] = set()
     _active_lock = threading.Lock()
 
     def __init__(self, rlm, *, prompt: str | None = None, model_label: str | None = None) -> None:
@@ -328,7 +329,7 @@ class CallScope(AbstractContextManager):
         self._max_depth_seen = 0
         self._fanout = 0
 
-    def __enter__(self) -> "CallScope":
+    def __enter__(self) -> CallScope:
         calls_in_flight.labels(kind="root").inc()
         if self._prompt is not None:
             try:

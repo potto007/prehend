@@ -18,7 +18,6 @@ from lm_repl.environments.local_repl import (
     _subcall_budget_remaining,
 )
 
-
 # ---- pure decision function ---------------------------------------------------
 
 def test_remaining_unlimited_when_disabled():

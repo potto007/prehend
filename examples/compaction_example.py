@@ -17,7 +17,6 @@ Usage:
 import os
 
 from dotenv import load_dotenv
-
 from rlm import RLM
 from rlm.logger import RLMLogger
 

@@ -8,7 +8,6 @@ running in the REPL can query the LLM via socket connection.
 import os
 
 from dotenv import load_dotenv
-
 from rlm.clients.portkey import PortkeyClient
 from rlm.core.lm_handler import LMHandler
 from rlm.environments.local_repl import LocalREPL
