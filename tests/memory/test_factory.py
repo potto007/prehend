@@ -114,3 +114,54 @@ def test_full_loop_dedups_same_question(tmp_path):
     harness.answer(context="c", question="Q")
     # Same question -> same deterministic id -> still one entry.
     assert len(harness.bank.load()) == 1
+
+
+# --- build_memory_harness_from_config: separate embed endpoint ----------------
+
+def _patch_backends(monkeypatch, seen):
+    from prehend.memory import factory as fac
+
+    def fake_embed(*, base_url, model, api_key="EMPTY"):
+        seen["embed"] = {"base_url": base_url, "model": model, "api_key": api_key}
+        return ConstBackend()
+
+    def fake_reflect(*, base_url, model, api_key="EMPTY", **kw):
+        seen["reflect"] = {"base_url": base_url, "model": model, "api_key": api_key}
+        return _reflect_fn({"key_insight": "k"})
+
+    monkeypatch.setattr(fac.OpenAIEmbeddingBackend, "from_config", fake_embed)
+    monkeypatch.setattr(fac.OpenAIReflectFn, "from_config", fake_reflect)
+
+
+def test_from_config_routes_embed_to_separate_endpoint(monkeypatch, tmp_path):
+    from prehend.memory.factory import build_memory_harness_from_config
+    seen = {}
+    _patch_backends(monkeypatch, seen)
+    harness = build_memory_harness_from_config(
+        FakeSolver(), tmp_path / "mem",
+        base_url="http://localhost:8080/v1",
+        embed_model="bge-m3", reflect_model="gemma",
+        embed_base_url="http://localhost:8081/v1",
+        embed_api_key="embed-key",
+    )
+    assert isinstance(harness, MemoryHarness)
+    assert seen["embed"]["base_url"] == "http://localhost:8081/v1"
+    assert seen["embed"]["model"] == "bge-m3"
+    assert seen["embed"]["api_key"] == "embed-key"
+    assert seen["reflect"]["base_url"] == "http://localhost:8080/v1"
+    assert seen["reflect"]["model"] == "gemma"
+
+
+def test_from_config_embed_endpoint_defaults_to_base_url(monkeypatch, tmp_path):
+    from prehend.memory.factory import build_memory_harness_from_config
+    seen = {}
+    _patch_backends(monkeypatch, seen)
+    build_memory_harness_from_config(
+        FakeSolver(), tmp_path / "mem",
+        base_url="http://localhost:8080/v1",
+        embed_model="bge-m3", reflect_model="gemma",
+        api_key="shared-key",
+    )
+    # No embed_base_url/embed_api_key -> embed reuses the single endpoint + key.
+    assert seen["embed"]["base_url"] == "http://localhost:8080/v1"
+    assert seen["embed"]["api_key"] == "shared-key"

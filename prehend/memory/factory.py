@@ -75,14 +75,24 @@ def build_memory_harness_from_config(
     embed_model: str,
     reflect_model: str,
     api_key: str = "EMPTY",
+    embed_base_url: str | None = None,
+    embed_api_key: str | None = None,
     source: str = "prehend",
     k_max: int = DEFAULT_K_MAX,
     min_cosine: float = DEFAULT_MIN_COSINE,
     tagger: Tagger | None = None,
 ) -> MemoryHarness:
-    """Convenience: build embedding + reflect against one OpenAI-compatible server."""
+    """Convenience: build embedding + reflect against OpenAI-compatible servers.
+
+    Reflect (trace distillation) runs against ``base_url``. Embedding runs
+    against ``embed_base_url`` when given, else ``base_url`` -- this is the
+    common local setup where a small embedding model (e.g. bge-m3) is served on
+    its own port while the chat model is swapped on a single-model router.
+    """
     backend = OpenAIEmbeddingBackend.from_config(
-        base_url=base_url, model=embed_model, api_key=api_key
+        base_url=embed_base_url or base_url,
+        model=embed_model,
+        api_key=embed_api_key or api_key,
     )
     reflect = OpenAIReflectFn.from_config(
         base_url=base_url, model=reflect_model, api_key=api_key
