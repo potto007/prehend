@@ -42,7 +42,9 @@ from lm_repl.memory import (
 load_dotenv()
 
 DEFAULT_BASE_URL = "http://localhost:8080/v1"
-DEFAULT_MODEL = "google/gemma-4-12b-it"
+# The actual loaded chat model on the local llama-server (google/gemma-4-12b-it
+# has no GGUF on disk). Override with --model for a different one.
+DEFAULT_MODEL = "gemma-4-12b-it-sft-kb-v13-sft"
 DEFAULT_BANK_DIR = "/tmp/mnemex_smoke_bank"
 QUESTION = "What is 6 multiplied by 7?"
 
@@ -78,10 +80,22 @@ def main() -> int:
             "model_name": args.model,
             "base_url": args.base_url,
             "api_key": "EMPTY",
+            # Bound the unbounded short-context direct path: disable gemma CoT and
+            # cap tokens so the solve can't degenerate into a giant thinking trace.
+            "default_extra_body": {
+                "chat_template_kwargs": {"enable_thinking": False},
+                "max_tokens": 2048,
+            },
         },
         direct_threshold=30_000,
     )
-    reflect = OpenAIReflectFn.from_config(base_url=args.base_url, model=args.model)
+    reflect = OpenAIReflectFn.from_config(
+        base_url=args.base_url, model=args.model,
+        # Mechanical JSON extraction: disable gemma CoT (else it can run away into
+        # an unbounded thinking trace) and cap tokens as a backstop.
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+        max_tokens=1024,
+    )
     harness = build_memory_harness(
         srlm,
         bank_dir,

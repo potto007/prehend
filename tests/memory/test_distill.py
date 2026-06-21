@@ -98,6 +98,22 @@ def test_id_is_deterministic_from_question():
     assert e1["id"] != e3["id"]
 
 
+def test_embeds_question_only_so_key_matches_retrieval():
+    # Retrieval embeds the bare query (harness calls retrieve(question)), so the
+    # stored key must also be the bare question - mixing the offloaded context
+    # into the stored embedding dilutes it and breaks paraphrase retrieval.
+    captured = []
+
+    class RecordingBackend:
+        def embed(self, text):
+            captured.append(text)
+            return [1.0, 0.0]
+
+    d = TraceDistiller(_reflect({"key_insight": "k"}), RecordingBackend())
+    d("What is 6 times 7?", "Basic arithmetic facts. Long offloaded context.", _result())
+    assert captured == ["What is 6 times 7?"]
+
+
 def test_invalid_polarity_defaults_to_positive():
     reflect = _reflect({"key_insight": "k", "polarity": "sideways"})
     d = TraceDistiller(reflect, FakeBackend())

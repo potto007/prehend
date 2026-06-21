@@ -94,16 +94,16 @@ class TraceDistiller:
             "key_insight": key_insight,
             "findings": findings,
             "cautions": cautions,
-            "embedding": list(self.backend.embed(self._embed_text(question, context))),
+            # Embed the bare question: retrieval embeds the bare query
+            # (harness.retrieve(question)), so the stored key MUST match it.
+            # Folding the offloaded context in here dilutes the key and breaks
+            # paraphrase retrieval as context grows.
+            "embedding": list(self.backend.embed(question)),
             "stats": {"use_count": 0, "hit_count": 0},
             "source": self.source,
             "question": question,
             "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
-
-    @staticmethod
-    def _embed_text(question: str, context: str) -> str:
-        return question if not context else f"{question}\n\n{context}"
 
     @staticmethod
     def _final_answer(result: Any) -> str:

@@ -78,6 +78,13 @@ def main() -> int:
             "model_name": args.chat_model,
             "base_url": args.chat_base_url,
             "api_key": "EMPTY",
+            # The short-context direct path is otherwise unbounded; on a thinking
+            # model that lets the solve degenerate into a giant CoT trace. Disable
+            # thinking + cap tokens for this mechanical smoke (wiring, not reasoning).
+            "default_extra_body": {
+                "chat_template_kwargs": {"enable_thinking": False},
+                "max_tokens": 2048,
+            },
         },
         direct_threshold=30_000,
     )
@@ -85,7 +92,11 @@ def main() -> int:
         base_url=args.embed_base_url, model=args.embed_model
     )
     reflect = OpenAIReflectFn.from_config(
-        base_url=args.chat_base_url, model=args.chat_model
+        base_url=args.chat_base_url, model=args.chat_model,
+        # Distillation is mechanical JSON extraction - disable gemma's CoT so it
+        # cannot degenerate into an unbounded thinking trace; cap as a backstop.
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+        max_tokens=1024,
     )
     harness = build_memory_harness(
         srlm,
