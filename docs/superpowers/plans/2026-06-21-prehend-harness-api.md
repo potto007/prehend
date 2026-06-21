@@ -25,8 +25,10 @@
 - Modify `prehend/__init__.py` -- export `Harness`, `Runtime`, `MemoryConfig`, `Defaults`; extend `__all__`.
 - Create `tests/test_harness.py` -- all Harness unit tests (fake backend).
 - Modify `tests/test_imports.py` -- assert the new public names import.
-- Modify `~/src/rlm-trainer/benchmark.py` -- replace SRLM block + `_maybe_wrap_memory` with `Harness`.
-- Create `docs/decisions/0008-high-level-harness-api.md`; modify `docs/decisions/0005-mnemex-experience-memory-layer.md` (supersede-note).
+- Modify `prehend/harness.py` again (Task 6) -- optional advanced passthrough kwargs.
+- Modify `~/src/rlm-trainer/benchmark.py` (Task 7) -- replace SRLM block + `_maybe_wrap_memory` with `Harness`, forwarding the advanced knobs.
+- Modify `~/src/rlm-trainer/tests/test_benchmark_direct_routing.py` (Task 7) -- the two construction tests patch `Harness` instead of `SRLM`; flag/help tests unchanged.
+- Create `docs/decisions/0008-high-level-harness-api.md`; modify `docs/decisions/0005-mnemex-experience-memory-layer.md` (supersede-note) (Task 8).
 
 ---
 
@@ -553,24 +555,96 @@ git commit -m "feat(harness): export Harness/Runtime/MemoryConfig/Defaults"
 
 ---
 
-### Task 6: Migrate `benchmark.py` onto `Harness` (rlm-trainer)
+### Task 6: Harness advanced passthroughs (direct routing + multi-trajectory)
+
+**Files:**
+- Modify: `prehend/harness.py` -- add optional passthrough kwargs to `Harness.__init__`.
+- Test: `tests/test_harness.py`
+
+**Why:** `benchmark.py` exposes (and `tests/test_benchmark_direct_routing.py` tests) SRLM's context-routing + multi-trajectory knobs. Task 7 migrates benchmark onto `Harness`, so `Harness` must forward these or that capability is lost. All are real `SRLM`/`RLM` params; the five candidate/routing ones are stored as SRLM attributes (`prehend/core/srlm.py:121-125`).
+
+**Interfaces:**
+- Consumes: `Harness` (Task 3).
+- Produces: `Harness.__init__` gains optional kwargs, all defaulting to `None` and forwarded to SRLM ONLY when not `None` (so SRLM's own defaults apply otherwise): `direct_threshold: int | None = None`, `n_candidates: int | None = None`, `candidate_temperature: float | None = None`, `candidate_parallel: int | None = None`, `confidence_elicitation: bool | None = None`, `scheduler_max_concurrent: int | None = None`, `scheduler_coordination_dir: str | None = None`.
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+# add to tests/test_harness.py
+class TestHarnessPassthroughs:
+    def test_advanced_knobs_reach_srlm(self):
+        h = _h(direct_threshold=30000, n_candidates=4, candidate_temperature=0.7,
+               candidate_parallel=2, confidence_elicitation=True,
+               scheduler_max_concurrent=4)
+        assert h.srlm.direct_threshold == 30000
+        assert h.srlm.n_candidates == 4
+        assert h.srlm.candidate_temperature == 0.7
+        assert h.srlm.candidate_parallel == 2
+        assert h.srlm.confidence_elicitation is True
+
+    def test_unset_knobs_use_srlm_defaults(self):
+        h = _h()
+        assert h.srlm.direct_threshold == 0    # SRLM default (always-rlm)
+        assert h.srlm.n_candidates == 1        # SRLM default (single trajectory)
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `~/.local/bin/uv run python -m pytest tests/test_harness.py::TestHarnessPassthroughs -q`
+Expected: FAIL with `TypeError: __init__() got an unexpected keyword argument 'direct_threshold'`
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add the seven params to `Harness.__init__`'s signature (each `... | None = None`),
+then, after the existing optional-hook gating and BEFORE `self.srlm = SRLM(**srlm_kwargs)`:
+
+```python
+        for _name, _val in (
+            ("direct_threshold", direct_threshold),
+            ("n_candidates", n_candidates),
+            ("candidate_temperature", candidate_temperature),
+            ("candidate_parallel", candidate_parallel),
+            ("confidence_elicitation", confidence_elicitation),
+            ("scheduler_max_concurrent", scheduler_max_concurrent),
+            ("scheduler_coordination_dir", scheduler_coordination_dir),
+        ):
+            if _val is not None:
+                srlm_kwargs[_name] = _val
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `~/.local/bin/uv run python -m pytest tests/test_harness.py -q`
+Expected: PASS (whole file green, including Tasks 1-5).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add prehend/harness.py tests/test_harness.py
+git commit -m "feat(harness): optional passthroughs for direct routing + multi-trajectory knobs"
+```
+
+---
+
+### Task 7: Migrate `benchmark.py` onto `Harness` (rlm-trainer)
 
 **Files:**
 - Modify: `~/src/rlm-trainer/benchmark.py` -- `_run_one_task` SRLM block + `_maybe_wrap_memory`.
-- Test: `~/src/rlm-trainer/tests/test_benchmark_memory.py` (must stay green).
+- Modify: `~/src/rlm-trainer/tests/test_benchmark_direct_routing.py` -- the two SRLM-construction tests now assert against `Harness` (the `--help` flag tests are unchanged; the flags STAY).
+- Test (must stay green): `~/src/rlm-trainer/tests/test_benchmark_memory.py` AND `~/src/rlm-trainer/tests/test_benchmark_direct_routing.py`.
 
 **Interfaces:**
 - Consumes: `from prehend import Harness, MemoryConfig`.
-- Produces: identical solve behavior; `_maybe_wrap_memory` deleted.
+- Produces: identical solve behavior, zero capability loss; `_maybe_wrap_memory` deleted; the advanced CLI flags + `run_benchmark` params are KEPT (forwarded through Harness passthroughs).
 
-**Working dir:** `cd ~/src/rlm-trainer`. prehend is an editable install here; if missing run `~/.local/bin/uv pip install -e ~/src/prehend` (handoff gotcha).
+**Working dir:** `cd ~/src/rlm-trainer`. prehend is an editable install here; if missing run `~/.local/bin/uv pip install -e ~/src/prehend` (handoff gotcha). This is a DIFFERENT git repo from prehend; commit here.
 
-- [ ] **Step 1: Run the existing benchmark/memory tests to capture the green baseline**
+- [ ] **Step 1: Capture the green baseline**
 
-Run: `cd ~/src/rlm-trainer && .venv/bin/python -m pytest tests/test_benchmark_memory.py -q`
-Expected: PASS (record the count, e.g. 12 passed).
+Run: `cd ~/src/rlm-trainer && .venv/bin/python -m pytest tests/test_benchmark_memory.py tests/test_benchmark_direct_routing.py -q`
+Expected: PASS (record the counts).
 
-- [ ] **Step 2: Replace the SRLM construction + memory wrap with Harness**
+- [ ] **Step 2: Replace the SRLM construction + memory wrap with Harness (forwarding the advanced knobs)**
 
 In `_run_one_task`, replace the whole `srlm = SRLM(...)` block and
 `solver = _maybe_wrap_memory(srlm, params)` with:
@@ -597,6 +671,15 @@ In `_run_one_task`, replace the whole `srlm = SRLM(...)` block and
         runtime="auto",
         memory=mem,
         logger=logger,
+        # advanced knobs preserved (kept on the CLI / run_benchmark); forwarded
+        # to SRLM by the Harness only when set:
+        direct_threshold=params.get("direct_threshold", 0),
+        n_candidates=params.get("n_candidates", 1),
+        candidate_temperature=params.get("candidate_temperature"),
+        candidate_parallel=params.get("candidate_parallel", 1),
+        confidence_elicitation=params.get("confidence_elicitation", False),
+        scheduler_max_concurrent=params.get("scheduler_max_concurrent"),
+        scheduler_coordination_dir=params.get("scheduler_coordination_dir"),
     )
     solver = harness
     start = time.time()
@@ -606,25 +689,40 @@ In `_run_one_task`, replace the whole `srlm = SRLM(...)` block and
 
 Delete the `_maybe_wrap_memory` function and the now-unused `SRLM` import if no
 other reference remains (grep first: `grep -n "SRLM\|_maybe_wrap_memory" benchmark.py`).
-Add `from prehend import Harness, MemoryConfig` at the top.
+Add `from prehend import Harness, MemoryConfig` at the top. DO NOT remove the
+argparse flags or the `run_benchmark` params for the advanced knobs -- they are
+preserved. (The `RLM_SUBCALL_THINKING` subcall-thinking env toggle and the
+`soft_timeout_pct` param are NOT forwarded by this migration; both default to the
+Harness vetted default of off/None which matches benchmark's prior default, so
+behavior is unchanged unless someone set them. If you find a run that sets either,
+stop and report it rather than silently dropping it.)
 
-NOTE: benchmark previously set `scheduler_max_concurrent`, `direct_threshold`,
-`n_candidates`, `soft_timeout_pct`, and `RLM_SUBCALL_THINKING` extra-body. For
-this migration keep parity by either (a) accepting the Harness vetted defaults if
-the benchmark CLI does not actually set them in the runs we care about, or (b)
-threading any genuinely-used ones through `Defaults`/args. Decide by grepping how
-`run_benchmark` is invoked; do NOT silently drop a knob a run depends on. If
-`direct_threshold`/`n_candidates` are used, they belong to SRLM-level config not
-yet exposed by Harness -- in that case, expose them as `Harness` passthroughs in a
-follow-up and keep this migration to the common path, leaving a `# TODO(harness):`
-only if a real run needs them (otherwise omit).
+- [ ] **Step 3: Update `tests/test_benchmark_direct_routing.py` construction tests**
 
-- [ ] **Step 3: Run the benchmark/memory tests**
+The two tests that do `@patch("benchmark.SRLM")` and assert `_run_one_task` built
+an SRLM with `direct_threshold`/`n_candidates` must now patch the Harness instead.
+Change `@patch("benchmark.SRLM")` to `@patch("benchmark.Harness")` in
+`test_creates_srlm_with_threshold` and `test_creates_srlm_with_candidates`, and
+assert on the Harness call kwargs:
 
-Run: `cd ~/src/rlm-trainer && .venv/bin/python -m pytest tests/test_benchmark_memory.py -q`
-Expected: PASS, same count as Step 1.
+```python
+    @patch("benchmark.Harness")
+    @patch("benchmark.RLMLogger")
+    def test_creates_srlm_with_threshold(self, mock_logger_cls, mock_harness_cls):
+        benchmark._run_one_task(self._base_params(50000, direct_threshold=30000))
+        call_kwargs = mock_harness_cls.call_args.kwargs
+        assert call_kwargs["direct_threshold"] == 30000
+```
+(Apply the analogous change to `test_creates_srlm_with_candidates` for
+`n_candidates == 4`. Confirm the exact logger-patch target/name from the existing
+test; keep the `--help` flag tests unchanged since the flags are kept.)
 
-- [ ] **Step 4: Smoke a single real solve (no-memory + memory), 1 task each**
+- [ ] **Step 4: Run both benchmark test files**
+
+Run: `cd ~/src/rlm-trainer && .venv/bin/python -m pytest tests/test_benchmark_memory.py tests/test_benchmark_direct_routing.py -q`
+Expected: PASS, same counts as Step 1.
+
+- [ ] **Step 5: Smoke a single real solve (no-memory + memory), 1 task each**
 
 Run (server must be up; v13 loaded):
 ```bash
@@ -634,17 +732,17 @@ cd ~/src/rlm-trainer
 ```
 Expected: both `[1/1] ... CORRECT` (or a genuine solve), 0 infra-fail from wiring.
 
-- [ ] **Step 5: Commit (in rlm-trainer)**
+- [ ] **Step 6: Commit (in rlm-trainer)**
 
 ```bash
 cd ~/src/rlm-trainer
-git add benchmark.py
+git add benchmark.py tests/test_benchmark_direct_routing.py
 git commit -m "refactor(benchmark): solve via prehend Harness; drop hand-wired SRLM + _maybe_wrap_memory"
 ```
 
 ---
 
-### Task 7: ADR-0008 + supersede-note on ADR-0005
+### Task 8: ADR-0008 + supersede-note on ADR-0005
 
 **Files:**
 - Create: `docs/decisions/0008-high-level-harness-api.md`
@@ -683,11 +781,12 @@ git commit -m "docs(adr): ADR-0008 high-level Harness API; supersede-note on 000
 - Tier B hybrid runtime -> Task 2 (`detect_runtime`) + Task 3 (resolve/fallback). ✓
 - Memory composition -> Task 4. ✓
 - Tier-C hooks -> Task 3 (`system_addendum`, verifiers, `custom_tools`, `observability`). ✓
+- Advanced passthroughs (direct routing + multi-trajectory) -> Task 6 (added after review found `test_benchmark_direct_routing.py` covers them). ✓
 - SRLM escape hatch unchanged -> no task modifies SRLM/RLM. ✓
 - Public API -> Task 5. ✓
-- benchmark migration (in scope) -> Task 6. ✓
+- benchmark migration (in scope) -> Task 7 (forwards the advanced knobs; updates `test_benchmark_direct_routing.py`). ✓
 - kb-librarian (fast-follow, NOT this plan) -> intentionally absent; hooks shipped in Task 3. ✓
-- ADR-0008 + 0005 note -> Task 7. ✓
+- ADR-0008 + 0005 note -> Task 8. ✓
 
 **Placeholder scan:** No "TBD/implement later". The one `# TODO(harness):` in Task 6
 is conditional and explicitly gated on "only if a real run needs it"; the default
