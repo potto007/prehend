@@ -19,7 +19,7 @@ Quick start::
 """
 from lm_repl.memory.bank import Bank
 from lm_repl.memory.distill import TraceDistiller
-from lm_repl.memory.embed import EmbeddingBackend, cosine
+from lm_repl.memory.embed import EmbeddingBackend, HashingEmbeddingBackend, cosine
 from lm_repl.memory.embed_openai import OpenAIEmbeddingBackend
 from lm_repl.memory.factory import (
     build_memory_harness,
@@ -35,6 +35,7 @@ from lm_repl.memory.tagger import NullTagger, Tagger
 __all__ = [
     "Bank",
     "EmbeddingBackend",
+    "HashingEmbeddingBackend",
     "OpenAIEmbeddingBackend",
     "OpenAIReflectFn",
     "cosine",
