@@ -46,7 +46,7 @@ Every argument the clients pass to `SRLM` falls into one of three buckets:
 | Tier | Examples | Owner today |
 |------|----------|-------------|
 | **A. General strategy / reliability** | `max_output_chars`, `max_retries`, `stream`, `repair_*`, `max_subcalls`, `soft_timeout_pct`, backend assembly, scheduler wiring | Client (copied, drifted) |
-| **B. Runtime-derived** | `max_concurrent_subcalls` / `scheduler_max_concurrent` <- server slot count | Client (hard-coded defaults) |
+| **B. Runtime-derived** | `max_concurrent_subcalls` <- server slot count | Client (hard-coded defaults) |
 | **C. Domain extension** | `subcall_verifier`, `answer_verifier`, `custom_tools`, system-prompt addendum, observability bind, per-client `max_output_chars` | Client (legitimate) |
 
 ## Decision Drivers

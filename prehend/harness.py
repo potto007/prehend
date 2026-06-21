@@ -10,6 +10,8 @@ import logging
 import urllib.request
 
 from prehend.core.srlm import SRLM
+from prehend.core.types import RLMChatCompletion
+from prehend.utils.prompts import RLM_SYSTEM_PROMPT
 
 _log = logging.getLogger("prehend.harness")
 
@@ -141,7 +143,7 @@ class Harness:
             verbose=False,
         )
         if system_addendum is not None:
-            srlm_kwargs["custom_system_prompt"] = system_addendum
+            srlm_kwargs["custom_system_prompt"] = RLM_SYSTEM_PROMPT + "\n\n" + system_addendum
         if subcall_verifier is not None:
             srlm_kwargs["subcall_verifier"] = subcall_verifier
         if answer_verifier is not None:
@@ -193,5 +195,5 @@ class Harness:
                   d.max_concurrent_subcalls)
         return Runtime(slots=d.max_concurrent_subcalls)
 
-    def completion(self, context: str, query: str) -> str:
+    def completion(self, context: str, query: str) -> "RLMChatCompletion":
         return self.solver.completion(context, query)

@@ -2,6 +2,7 @@ import dataclasses
 from prehend.harness import Defaults, VETTED, Runtime, MemoryConfig, detect_runtime, Harness
 from prehend.core.srlm import SRLM
 from prehend.memory.harness import MemoryHarness
+from prehend.utils.prompts import RLM_SYSTEM_PROMPT
 
 
 class TestSupportingTypes:
@@ -57,6 +58,9 @@ class TestHarnessCore:
         assert h.srlm.max_answer_retries == 5
         assert h.srlm.custom_tools == sentinel_tools
         assert seen["srlm"] is h.srlm            # observability hook ran with raw SRLM
+        # system_addendum appends to (not replaces) the base RLM system prompt
+        assert "EXTRA" in h.srlm.system_prompt
+        assert RLM_SYSTEM_PROMPT[:40] in h.srlm.system_prompt
 
     def test_completion_delegates_to_solver(self):
         h = _h()
