@@ -4,6 +4,10 @@ date: "2026-06-20"
 deciders: "potto"
 ---
 
+> **Note (2026-06-21):** The memory layer is now composed via `Harness(memory=MemoryConfig(...))`
+> in `prehend/harness.py`; clients no longer hand-wire `MemoryHarness` or
+> `_maybe_wrap_memory` directly. See ADR-0008.
+
 # Adopt FinAcumen's FM as lm-repl's experience-memory layer (mnemex)
 
 ## Context and Problem Statement
