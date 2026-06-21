@@ -3,7 +3,10 @@ memory composition so clients do not hand-assemble SRLM. See
 docs/superpowers/specs/2026-06-21-prehend-harness-api-design.md and ADR-0008."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+import json
+import urllib.request
 
 
 @dataclass(frozen=True)
@@ -40,3 +43,38 @@ class MemoryConfig:
     embed_api_key: str | None = None
     k_max: int | None = None
     min_cosine: float | None = None
+
+
+def _default_probe(base_url: str, api_key: str) -> Runtime | None:
+    """Best-effort llama-server probe. Returns None if facts are unavailable."""
+    root = base_url.rstrip("/")
+    if root.endswith("/v1"):
+        root = root[: -len("/v1")]
+    try:
+        with urllib.request.urlopen(f"{root}/props", timeout=5) as r:
+            props = json.loads(r.read())
+        gen = props.get("default_generation_settings", {}) or {}
+        ctx = gen.get("n_ctx") or None
+        slots = props.get("total_slots") or gen.get("n_parallel") or 0
+        if not slots or slots <= 0:
+            return None
+        return Runtime(slots=int(slots), ctx=int(ctx) if ctx else None)
+    except Exception:
+        return None
+
+
+def detect_runtime(
+    base_url: str,
+    *,
+    api_key: str = "not-needed",
+    probe: Callable[[str, str], Runtime | None] | None = None,
+) -> Runtime | None:
+    """Hybrid Tier-B detection. None means 'ambiguous, caller should fall back'."""
+    p = probe or _default_probe
+    try:
+        rt = p(base_url, api_key)
+    except Exception:
+        return None
+    if rt is None or rt.slots <= 0:
+        return None
+    return rt
