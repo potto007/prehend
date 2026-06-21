@@ -7,13 +7,13 @@
 
 ## Problem
 
-prehend's public API is effectively just `RLM` and `SRLM`. `SRLM.__init__`
-exposes ~20 low-level strategy knobs (dual backends, `environment_kwargs`,
-`max_output_chars`, `max_iterations`/`max_depth`, `direct_threshold`, scheduler
-coordination, `soft_timeout_pct`, reliability guards, ...), plus an out-of-band
-`MAPREDUCE_CONCURRENCY` env var read in `mapreduce.py`. To get a correct,
-reliable solve a client must know *the right approach and strategies* and
-assemble all of this itself.
+prehend's public API is effectively just `RLM` and `SRLM`. `SRLM.__init__` (plus
+the `RLM.__init__` it forwards `**kwargs` to) exposes ~20 low-level strategy
+knobs (dual backends, `environment_kwargs`/`max_output_chars`,
+`max_iterations`/`max_depth`, `direct_threshold` routing, `max_concurrent_subcalls`,
+scheduler coordination, `soft_timeout_pct`, reliability guards, ...). To get a
+correct, reliable solve a client must know *the right approach and strategies*
+and assemble all of this itself.
 
 The two real clients prove the cost:
 
@@ -31,10 +31,18 @@ way. The orchestration discipline itself (process context by reference, one
 sub-prompt per slice, never loop `llm_query`) is even encoded as a copy-able
 prose block in librarian's system prompt.
 
-A concrete instance bit us during the memory eval: the client had to set
-`MAPREDUCE_CONCURRENCY` to match the server's slot count, and nobody did, so
-sub-RLM concurrency did not match the 4-slot v13 server. The harness should own
-that decision, not the client.
+The runtime-dependent knobs make this fragile. Solve-path sub-call concurrency
+is `max_concurrent_subcalls` (RLM, default 4) and `scheduler_max_concurrent`;
+context routing is `direct_threshold` (SRLM). These *should* track the server's
+slot count and ctx, but the clients leave them at hard-coded defaults. During the
+memory eval the default `max_concurrent_subcalls=4` happened to match v13's 4
+slots -- it worked by luck, not because anyone derived it. A 2-slot or 8-slot
+server would over- or under-subscribe silently. The harness should *derive* these
+from the server, not leave them to a lucky default in the client.
+
+(Note: `MAPREDUCE_CONCURRENCY` / `rlm-trainer/mapreduce.py` is a *separate*
+subsystem -- typed map-reduce tools for `generate.py`'s trajectory-gen pipeline,
+not the benchmark/SRLM solve path -- and is out of scope here.)
 
 ## Goal
 
@@ -125,20 +133,27 @@ knobs both clients learned (`max_retries=0`, `stream=True`, `repair_*`,
 
 ### Tier B: hybrid runtime detection
 
+The seam is **explicit SRLM/RLM constructor args** -- no env var, no process
+mutation. The resolved `Runtime(slots, ctx)` maps to:
+- `max_concurrent_subcalls = slots` (RLM): the map-reduce fan-out matches the
+  server's slot count instead of the hard-coded 4.
+- `scheduler_max_concurrent` derived from `slots` (the per-process in-flight cap).
+- `direct_threshold`: kept at the vetted default (0 = always decompose). Deriving
+  it from `ctx` is a possible future refinement; YAGNI for v1.
+
 `runtime="auto"` (default):
-1. Probe the endpoint for slots and ctx (e.g. `/props`, `/models`, and/or a
-   calibration request). Router mode is known-fragile: `/props` on the proxy
-   port returned `n_ctx 0` / `model none` because the model runs on an internal
-   subprocess port.
-2. If the probe is ambiguous/fails -> **safe fallback**: `slots=1`, conservative
-   ctx, and log a one-line notice that detection fell back.
+1. Probe the endpoint for slots/ctx (`/props`, `/models`, and/or a calibration
+   request). Router mode is known-fragile: `/props` on the proxy port returned
+   `n_ctx 0` / `model none` because the model runs on an internal subprocess port.
+2. If the probe is ambiguous/fails -> **safe fallback**: keep the vetted-default
+   concurrency (today's behavior, `max_concurrent_subcalls=4`) and log a one-line
+   notice that detection fell back. (Fallback preserves current behavior rather
+   than regressing throughput; a client wanting strict-conservative passes an
+   explicit `Runtime`.)
 3. `runtime=Runtime(slots=, ctx=)` skips probing entirely (explicit override).
 
-From the resolved `Runtime`, the Harness sets `MAPREDUCE_CONCURRENCY` (via the
-mechanism `mapreduce.py` reads) and the routing threshold. **The client never
-touches `MAPREDUCE_CONCURRENCY` again.** (Implementation note: prefer passing the
-concurrency to the solver explicitly over mutating a process env var; if the env
-var is the only seam today, the Harness sets it in a contained, documented way.)
+So the Harness *derives* the slot-dependent concurrency the client used to leave
+to a lucky default.
 
 ### Memory composition
 
@@ -218,13 +233,11 @@ Harness.
 
 - **Runtime probe fragility (router mode).** Mitigated by the safe fallback to
   `slots=1` + explicit-override path; never hard-fail on an ambiguous probe.
-- **Hidden coupling via the `MAPREDUCE_CONCURRENCY` env var.** If concurrency can
-  only be injected via env today, the Harness setting it is a shared-process
-  side effect; benchmark already runs each task in its own process (safe), but
-  document it and prefer an explicit-arg seam if one exists. **The plan's first
-  task is to determine this seam** (does `mapreduce.py` / SRLM accept concurrency
-  by argument, or is the env var the only injection point?); the Tier-B design
-  firms up once that is known.
+- **Concurrency seam (RESOLVED during planning).** The solve-path concurrency is
+  the explicit `max_concurrent_subcalls` / `scheduler_max_concurrent` SRLM/RLM
+  args -- no env var, no process mutation. (`MAPREDUCE_CONCURRENCY` belongs to a
+  different subsystem, `generate.py` trajectory-gen, not the solve path.) Tier B
+  is therefore a clean arg-derivation, not an env hack.
 - **kb-librarian behavior drift (deferred to fast-follow).** Its many tuned knobs
   must survive its eventual migration; the `Defaults`-override + Tier-C hooks
   must cover every arg `ask.py` sets today. This plan de-risks by NOT migrating
