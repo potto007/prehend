@@ -81,6 +81,8 @@ def build_memory_harness_from_config(
     k_max: int = DEFAULT_K_MAX,
     min_cosine: float = DEFAULT_MIN_COSINE,
     tagger: Tagger | None = None,
+    reflect_enable_thinking: bool = False,
+    reflect_max_tokens: int | None = 512,
 ) -> MemoryHarness:
     """Convenience: build embedding + reflect against OpenAI-compatible servers.
 
@@ -88,6 +90,13 @@ def build_memory_harness_from_config(
     against ``embed_base_url`` when given, else ``base_url`` -- this is the
     common local setup where a small embedding model (e.g. bge-m3) is served on
     its own port while the chat model is swapped on a single-model router.
+
+    Distillation is mechanical JSON extraction, not reasoning, so by default
+    reflect runs with thinking OFF and a bounded ``reflect_max_tokens``. Without
+    this, a reasoning ``reflect_model`` (e.g. a gemma sft-kb with CoT on) emits a
+    full thought trace per solve -- the dominant memory-layer overhead and a prime
+    source of single-GPU contention. Override the knobs to restore CoT/raise the
+    cap when the reflect model genuinely needs it.
     """
     backend = OpenAIEmbeddingBackend.from_config(
         base_url=embed_base_url or base_url,
@@ -95,7 +104,9 @@ def build_memory_harness_from_config(
         api_key=embed_api_key or api_key,
     )
     reflect = OpenAIReflectFn.from_config(
-        base_url=base_url, model=reflect_model, api_key=api_key
+        base_url=base_url, model=reflect_model, api_key=api_key,
+        extra_body={"chat_template_kwargs": {"enable_thinking": reflect_enable_thinking}},
+        max_tokens=reflect_max_tokens,
     )
     return build_memory_harness(
         solver, bank_dir,

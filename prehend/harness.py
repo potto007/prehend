@@ -50,6 +50,11 @@ class MemoryConfig:
     embed_api_key: str | None = None
     k_max: int | None = None
     min_cosine: float | None = None
+    # Trace distillation is mechanical JSON extraction: thinking OFF + bounded
+    # output by default, so a reasoning reflect_model can't emit a giant CoT per
+    # solve (the dominant memory overhead / GPU-contention source).
+    reflect_enable_thinking: bool = False
+    reflect_max_tokens: int | None = 512
 
 
 def _default_probe(base_url: str, api_key: str) -> Runtime | None:
@@ -182,6 +187,8 @@ class Harness:
                 api_key=api_key,
                 embed_base_url=memory.embed_url,
                 embed_api_key=memory.embed_api_key,
+                reflect_enable_thinking=memory.reflect_enable_thinking,
+                reflect_max_tokens=memory.reflect_max_tokens,
                 **tight,
             )
 

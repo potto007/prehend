@@ -126,7 +126,7 @@ def _patch_backends(monkeypatch, seen):
         return ConstBackend()
 
     def fake_reflect(*, base_url, model, api_key="EMPTY", **kw):
-        seen["reflect"] = {"base_url": base_url, "model": model, "api_key": api_key}
+        seen["reflect"] = {"base_url": base_url, "model": model, "api_key": api_key, "kw": kw}
         return _reflect_fn({"key_insight": "k"})
 
     monkeypatch.setattr(fac.OpenAIEmbeddingBackend, "from_config", fake_embed)
@@ -150,6 +150,39 @@ def test_from_config_routes_embed_to_separate_endpoint(monkeypatch, tmp_path):
     assert seen["embed"]["api_key"] == "embed-key"
     assert seen["reflect"]["base_url"] == "http://localhost:8080/v1"
     assert seen["reflect"]["model"] == "gemma"
+
+
+def test_from_config_disables_reflect_thinking_and_caps_tokens_by_default(monkeypatch, tmp_path):
+    # Distillation is mechanical JSON extraction, not reasoning. On a thinking
+    # reflect_model (e.g. a gemma sft-kb with CoT on) an unbounded call degenerates
+    # into a huge thought trace per solve, dominating latency and saturating the
+    # GPU. The factory must default thinking OFF and bound output.
+    from prehend.memory.factory import build_memory_harness_from_config
+    seen = {}
+    _patch_backends(monkeypatch, seen)
+    build_memory_harness_from_config(
+        FakeSolver(), tmp_path / "mem",
+        base_url="http://localhost:8080/v1",
+        embed_model="bge-m3", reflect_model="gemma",
+    )
+    kw = seen["reflect"]["kw"]
+    assert kw["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
+    assert isinstance(kw["max_tokens"], int) and kw["max_tokens"] > 0
+
+
+def test_from_config_reflect_budget_is_overridable(monkeypatch, tmp_path):
+    from prehend.memory.factory import build_memory_harness_from_config
+    seen = {}
+    _patch_backends(monkeypatch, seen)
+    build_memory_harness_from_config(
+        FakeSolver(), tmp_path / "mem",
+        base_url="http://localhost:8080/v1",
+        embed_model="bge-m3", reflect_model="gemma",
+        reflect_enable_thinking=True, reflect_max_tokens=2048,
+    )
+    kw = seen["reflect"]["kw"]
+    assert kw["extra_body"]["chat_template_kwargs"]["enable_thinking"] is True
+    assert kw["max_tokens"] == 2048
 
 
 def test_from_config_embed_endpoint_defaults_to_base_url(monkeypatch, tmp_path):
