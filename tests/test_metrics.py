@@ -260,3 +260,53 @@ class TestCallScope:
         with metrics.CallScope(FakeRLM()):
             assert _read(metrics.calls_in_flight, kind="root") == before + 1
         assert _read(metrics.calls_in_flight, kind="root") == before
+
+
+class TestPrometheusMemoryObserver:
+    """MemoryHarness telemetry -> localai_prehend_memory_* series."""
+
+    def test_on_retrieve_hit_records_all(self):
+        obs = metrics.PrometheusMemoryObserver()
+        before = _read(metrics.memory_retrieval_total, outcome="hit")
+        ssum = metrics.memory_retrieve_seconds._sum.get()
+        score_sum = metrics.memory_top_score._sum.get()
+        obs.on_retrieve(entries=2, top_score=0.8, block_chars=120, seconds=0.01, error=False)
+        assert _read(metrics.memory_retrieval_total, outcome="hit") == before + 1
+        assert metrics.memory_retrieve_seconds._sum.get() == pytest.approx(ssum + 0.01)
+        assert metrics.memory_top_score._sum.get() == pytest.approx(score_sum + 0.8)
+
+    def test_on_retrieve_miss_and_error_outcomes(self):
+        obs = metrics.PrometheusMemoryObserver()
+        bm = _read(metrics.memory_retrieval_total, outcome="miss")
+        be = _read(metrics.memory_retrieval_total, outcome="error")
+        score_sum = metrics.memory_top_score._sum.get()
+        obs.on_retrieve(entries=0, top_score=None, block_chars=0, seconds=0.0, error=False)
+        obs.on_retrieve(entries=0, top_score=None, block_chars=0, seconds=0.0, error=True)
+        assert _read(metrics.memory_retrieval_total, outcome="miss") == bm + 1
+        assert _read(metrics.memory_retrieval_total, outcome="error") == be + 1
+        # top_score is never observed without a hit.
+        assert metrics.memory_top_score._sum.get() == score_sum
+
+    def test_on_collect_written_sets_bank_gauge(self):
+        obs = metrics.PrometheusMemoryObserver()
+        bw = _read(metrics.memory_collect_total, outcome="written")
+        ssum = metrics.memory_collect_seconds._sum.get()
+        obs.on_collect(outcome="written", seconds=0.02, bank_size=7)
+        assert _read(metrics.memory_collect_total, outcome="written") == bw + 1
+        assert metrics.memory_collect_seconds._sum.get() == pytest.approx(ssum + 0.02)
+        assert metrics.memory_bank_entries._value.get() == 7
+
+    def test_on_collect_deferred_skips_latency_observe(self):
+        obs = metrics.PrometheusMemoryObserver()
+        bd = _read(metrics.memory_collect_total, outcome="deferred")
+        ssum = metrics.memory_collect_seconds._sum.get()
+        obs.on_collect(outcome="deferred", seconds=5.0, bank_size=None)
+        assert _read(metrics.memory_collect_total, outcome="deferred") == bd + 1
+        assert metrics.memory_collect_seconds._sum.get() == ssum  # not observed
+
+    def test_handlers_swallow_internal_errors(self):
+        obs = metrics.PrometheusMemoryObserver()
+        before = _read(metrics.callback_failures_total)
+        # A non-numeric bank_size makes Gauge.set() raise; must be swallowed.
+        obs.on_collect(outcome="written", seconds=0.0, bank_size=object())  # type: ignore[arg-type]
+        assert _read(metrics.callback_failures_total) >= before + 1

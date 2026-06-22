@@ -261,3 +261,135 @@ def test_completion_defaults_root_prompt_to_prompt(tmp_path):
     prompt, root_prompt = solver.calls[0]
     assert prompt == "only the prompt"
     assert root_prompt == "only the prompt"
+
+
+# --- observer telemetry seam ------------------------------------------------
+
+class RecordingObserver:
+    """Captures the kwargs of every on_retrieve/on_collect event."""
+
+    def __init__(self):
+        self.retrieves: list[dict] = []
+        self.collects: list[dict] = []
+
+    def on_retrieve(self, **kw):
+        self.retrieves.append(kw)
+
+    def on_collect(self, **kw):
+        self.collects.append(kw)
+
+
+def test_observer_records_hit(tmp_path):
+    bank = Bank(tmp_path / "mem")
+    bank.append(_entry("a", [1.0, 0.0]))
+    obs = RecordingObserver()
+    harness = MemoryHarness(
+        FakeSolver(), bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5,
+        observer=obs,
+    )
+    harness.answer(context="ctx", question="Q")
+    (ev,) = obs.retrieves
+    assert ev["entries"] == 1 and ev["error"] is False
+    assert ev["top_score"] is not None and ev["block_chars"] > 0
+    assert ev["seconds"] >= 0.0
+
+
+def test_observer_records_miss(tmp_path):
+    bank = Bank(tmp_path / "mem")  # empty
+    obs = RecordingObserver()
+    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(), observer=obs)
+    harness.answer(context="ctx", question="q")
+    (ev,) = obs.retrieves
+    assert ev["entries"] == 0 and ev["error"] is False
+    assert ev["top_score"] is None and ev["block_chars"] == 0
+
+
+def test_observer_records_retrieval_error(tmp_path):
+    bank = Bank(tmp_path / "mem")
+    bank.append(_entry("a", [1.0, 0.0]))
+    obs = RecordingObserver()
+    harness = MemoryHarness(
+        FakeSolver(), bank, FakeBackend(raises=True), min_cosine=0.5, observer=obs,
+    )
+    harness.answer(context="ctx", question="Q")  # must not raise
+    (ev,) = obs.retrieves
+    assert ev["error"] is True and ev["entries"] == 0
+
+
+def test_observer_records_written_collect(tmp_path):
+    bank = Bank(tmp_path / "mem")
+    obs = RecordingObserver()
+    harness = MemoryHarness(
+        FakeSolver(), bank, FakeBackend(),
+        distiller=lambda q, c, r: _entry("learned", [0.5, 0.5]), observer=obs,
+    )
+    harness.answer(context="ctx", question="q")
+    (ev,) = obs.collects
+    assert ev["outcome"] == "written" and ev["bank_size"] == 1
+
+
+def test_observer_records_empty_collect(tmp_path):
+    bank = Bank(tmp_path / "mem")
+    obs = RecordingObserver()
+    harness = MemoryHarness(
+        FakeSolver(), bank, FakeBackend(),
+        distiller=lambda q, c, r: None, observer=obs,
+    )
+    harness.answer(context="ctx", question="q")
+    (ev,) = obs.collects
+    assert ev["outcome"] == "empty" and ev["bank_size"] is None
+
+
+def test_observer_records_duplicate_collect(tmp_path):
+    bank = Bank(tmp_path / "mem")
+    bank.append(_entry("dup", [0.1, 0.2]))
+    obs = RecordingObserver()
+    harness = MemoryHarness(
+        FakeSolver(), bank, FakeBackend(),
+        distiller=lambda q, c, r: _entry("dup", [0.3, 0.4]), observer=obs,
+    )
+    harness.answer(context="ctx", question="q")
+    (ev,) = obs.collects
+    assert ev["outcome"] == "duplicate"
+
+
+def test_observer_records_deferred_then_dropped(tmp_path):
+    bank = Bank(tmp_path / "mem")
+    obs = RecordingObserver()
+    harness = MemoryHarness(
+        FakeSolver(), bank, FakeBackend(),
+        distiller=_learn_distiller, defer_collect=True, observer=obs,
+    )
+    harness.answer(context="ctx", question="q")
+    harness.collect_pending(correct=False)
+    assert [e["outcome"] for e in obs.collects] == ["deferred", "dropped"]
+
+
+def test_observer_records_deferred_then_written(tmp_path):
+    bank = Bank(tmp_path / "mem")
+    obs = RecordingObserver()
+    harness = MemoryHarness(
+        FakeSolver(), bank, FakeBackend(),
+        distiller=_learn_distiller, defer_collect=True, observer=obs,
+    )
+    harness.answer(context="ctx", question="q")
+    harness.collect_pending(correct=True)
+    assert [e["outcome"] for e in obs.collects] == ["deferred", "written"]
+
+
+def test_observer_exception_never_breaks_answer(tmp_path):
+    class Boom:
+        def on_retrieve(self, **kw):
+            raise RuntimeError("observer down")
+
+        def on_collect(self, **kw):
+            raise RuntimeError("observer down")
+
+    bank = Bank(tmp_path / "mem")
+    solver = FakeSolver(answer="ok")
+    harness = MemoryHarness(
+        solver, bank, FakeBackend(),
+        distiller=lambda q, c, r: _entry("x", [0.1, 0.2]), observer=Boom(),
+    )
+    result = harness.answer(context="ctx", question="q")
+    assert result.final_answer == "ok"  # telemetry failure swallowed

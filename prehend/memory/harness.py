@@ -16,6 +16,7 @@ Design invariants carried over from FinAcumen:
 """
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from typing import Any, Protocol
 
@@ -38,6 +39,35 @@ class Solver(Protocol):
         ...
 
 
+class MemoryObserver(Protocol):
+    """Observe MemoryHarness internals for metrics/telemetry.
+
+    Both methods are best-effort: the harness wraps every call so an observer
+    bug never breaks a solve. The default :class:`NullObserver` no-ops, keeping
+    the harness free of any metrics dependency. ``prehend.metrics`` ships a
+    ``PrometheusMemoryObserver`` that maps these events onto Prometheus series.
+    """
+
+    def on_retrieve(
+        self, *, entries: int, top_score: float | None, block_chars: int,
+        seconds: float, error: bool,
+    ) -> None: ...
+
+    def on_collect(
+        self, *, outcome: str, seconds: float, bank_size: int | None,
+    ) -> None: ...
+
+
+class NullObserver:
+    """No-op :class:`MemoryObserver`; the default when none is supplied."""
+
+    def on_retrieve(self, **_: Any) -> None:
+        pass
+
+    def on_collect(self, **_: Any) -> None:
+        pass
+
+
 class MemoryHarness:
     """Adds retrieve/inject/collect around a context-offloading solver."""
 
@@ -52,6 +82,7 @@ class MemoryHarness:
         distiller: Distiller | None = None,
         tagger: Tagger | None = None,
         defer_collect: bool = False,
+        observer: MemoryObserver | None = None,
     ) -> None:
         self.solver = solver
         self.bank = bank
@@ -60,6 +91,7 @@ class MemoryHarness:
         self.min_cosine = min_cosine
         self.distiller = distiller
         self.tagger = tagger or NullTagger()
+        self.observer = observer or NullObserver()
         # When True, answer() solves but does NOT distill; the caller invokes
         # collect_pending(correct) once it knows the outcome, so a wrong solve
         # never poisons the bank (the dominant no-upside cause on the v13
@@ -78,14 +110,22 @@ class MemoryHarness:
         """
         return self.answer(prompt, root_prompt if root_prompt is not None else prompt)
 
+    def _observe(self, method: str, **kw: Any) -> None:
+        """Call an observer hook best-effort; a telemetry bug never propagates."""
+        try:
+            getattr(self.observer, method)(**kw)
+        except Exception:
+            pass
+
     def answer(self, context: str, question: str) -> Any:
         """Solve ``question`` over ``context``, using and growing memory."""
         try:
             query_tags = self.tagger.tag(question)
         except Exception:
             query_tags = {}
-        entries, scores = self._retrieve(question, query_tags)
+        entries, scores, error, retrieve_seconds = self._retrieve(question, query_tags)
 
+        block = ""
         if entries:
             block = render_memory_block(entries)
             root_prompt = f"{block}\n{question}" if block else question
@@ -99,10 +139,20 @@ class MemoryHarness:
         else:
             root_prompt = question
 
+        self._observe(
+            "on_retrieve",
+            entries=len(entries),
+            top_score=(max(scores) if scores else None),
+            block_chars=len(block),
+            seconds=retrieve_seconds,
+            error=error,
+        )
+
         result = self.solver.completion(context, root_prompt)
 
         if self.defer_collect:
             self._pending = (question, context, result, query_tags)
+            self._observe("on_collect", outcome="deferred", seconds=0.0, bank_size=None)
         else:
             self._collect(question, context, result, query_tags)
         return result
@@ -116,36 +166,60 @@ class MemoryHarness:
         """
         pending = self._pending
         self._pending = None
-        if pending is None or correct is False:
+        if pending is None:
+            return
+        if correct is False:
+            self._observe("on_collect", outcome="dropped", seconds=0.0, bank_size=None)
             return
         question, context, result, query_tags = pending
         self._collect(question, context, result, query_tags)
 
-    def _retrieve(self, question: str, query_tags: dict) -> tuple[list[dict], list[float]]:
-        """Retrieve experiences, degrading to empty on any failure."""
+    def _retrieve(
+        self, question: str, query_tags: dict
+    ) -> tuple[list[dict], list[float], bool, float]:
+        """Retrieve experiences, degrading to empty on any failure.
+
+        Returns ``(entries, scores, error, seconds)`` -- ``error`` distinguishes
+        a real retrieval failure from a clean miss, and ``seconds`` is the
+        embed+search wall time, both for the observer.
+        """
+        t0 = time.perf_counter()
         try:
             res = retrieve(
                 question, self.bank, self.backend,
                 k_max=self.k_max, min_cosine=self.min_cosine,
                 query_tags=query_tags,
             )
-            return res.entries, res.scores
+            return res.entries, res.scores, False, time.perf_counter() - t0
         except Exception:
-            return [], []
+            return [], [], True, time.perf_counter() - t0
 
     def _collect(self, question: str, context: str, result: Any, query_tags: dict) -> None:
         """Best-effort distillation of a new experience; never raises."""
         if self.distiller is None:
             return
+        t0 = time.perf_counter()
+        outcome = "error"
+        bank_size: int | None = None
         try:
             entry = self.distiller(question, context, result)
             if not entry:
+                outcome = "empty"
                 return
             if query_tags and not entry.get("tags"):
                 entry["tags"] = dict(query_tags)
+            existing = self.bank.load()
             eid = entry.get("id")
-            if eid is not None and any(e.get("id") == eid for e in self.bank.load()):
-                return  # one experience per id; do not append a duplicate
+            if eid is not None and any(e.get("id") == eid for e in existing):
+                outcome = "duplicate"  # one experience per id; do not append
+                return
             self.bank.append(entry)
+            outcome = "written"
+            bank_size = len(existing) + 1
         except Exception:
-            pass
+            outcome = "error"
+        finally:
+            self._observe(
+                "on_collect", outcome=outcome,
+                seconds=time.perf_counter() - t0, bank_size=bank_size,
+            )

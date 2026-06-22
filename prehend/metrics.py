@@ -43,7 +43,7 @@ except ImportError as e:
 
 from prehend.core.types import RLMIteration, RLMMetadata
 
-_PREFIX = "localai_lmrepl_"
+_PREFIX = "localai_prehend_"
 
 _CALL_BUCKETS = (0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600)
 _ITER_BUCKETS = (0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300)
@@ -133,6 +133,96 @@ timeouts_total = _counter(
 callback_failures_total = _counter(
     "callback_failures_total", "Metrics callback handlers that raised internally"
 )
+
+# Memory harness (prehend.memory.harness.MemoryHarness): retrieve -> inject ->
+# solve -> collect/distill. Bounded cardinality; single outcome label each.
+_SCORE_BUCKETS = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+_ENTRIES_BUCKETS = (0, 1, 2, 3, 4, 5, 8)
+_BLOCK_BUCKETS = (100, 500, 1_000, 2_000, 5_000, 10_000, 20_000, 50_000)
+
+memory_retrieve_seconds = _histogram(
+    "memory_retrieve_seconds",
+    "Latency of MemoryHarness retrieval (embed + search)",
+    _ITER_BUCKETS,
+)
+memory_retrieval_total = _counter(
+    "memory_retrieval_total",
+    "MemoryHarness retrievals by outcome",
+    ["outcome"],  # hit | miss | error
+)
+memory_retrieved_entries = _histogram(
+    "memory_retrieved_entries",
+    "Experiences injected into the root prompt per answer",
+    _ENTRIES_BUCKETS,
+)
+memory_top_score = _histogram(
+    "memory_top_score",
+    "Top cosine score of the retrieved set (observed on hits only)",
+    _SCORE_BUCKETS,
+)
+memory_block_chars = _histogram(
+    "memory_block_chars",
+    "Injected <Memory_Block> size in characters",
+    _BLOCK_BUCKETS,
+)
+memory_collect_seconds = _histogram(
+    "memory_collect_seconds",
+    "Latency of MemoryHarness distillation/collect",
+    _ITER_BUCKETS,
+)
+memory_collect_total = _counter(
+    "memory_collect_total",
+    "MemoryHarness collect outcomes",
+    ["outcome"],  # written | empty | duplicate | deferred | dropped | error
+)
+memory_bank_entries = _gauge(
+    "memory_bank_entries", "Current experience count in the memory bank"
+)
+
+
+class PrometheusMemoryObserver:
+    """Updates the localai_prehend_memory_* metrics from MemoryHarness events.
+
+    Duck-types ``prehend.memory.harness.MemoryObserver``. Every handler swallows
+    exceptions into ``callback_failures_total`` so a metrics bug never breaks a
+    solve. Attach a process-wide instance with :func:`memory_observer`.
+    """
+
+    def on_retrieve(
+        self, *, entries: int, top_score: float | None, block_chars: int,
+        seconds: float, error: bool,
+    ) -> None:
+        try:
+            outcome = "error" if error else ("hit" if entries else "miss")
+            memory_retrieval_total.labels(outcome=outcome).inc()
+            memory_retrieve_seconds.observe(seconds)
+            memory_retrieved_entries.observe(entries)
+            memory_block_chars.observe(block_chars)
+            if top_score is not None:
+                memory_top_score.observe(top_score)
+        except Exception:
+            callback_failures_total.inc()
+
+    def on_collect(
+        self, *, outcome: str, seconds: float, bank_size: int | None,
+    ) -> None:
+        try:
+            memory_collect_total.labels(outcome=outcome).inc()
+            # deferred/dropped are zero-duration bookkeeping, not real distills.
+            if outcome not in ("deferred", "dropped"):
+                memory_collect_seconds.observe(seconds)
+            if bank_size is not None:
+                memory_bank_entries.set(bank_size)
+        except Exception:
+            callback_failures_total.inc()
+
+
+_memory_observer = PrometheusMemoryObserver()
+
+
+def memory_observer() -> PrometheusMemoryObserver:
+    """Process-wide singleton observer to pass to a MemoryHarness/factory."""
+    return _memory_observer
 
 
 # Program classification: closed set of strings, low cardinality.
@@ -400,5 +490,15 @@ __all__ = [
     "errors_total",
     "timeouts_total",
     "callback_failures_total",
+    "PrometheusMemoryObserver",
+    "memory_observer",
+    "memory_retrieve_seconds",
+    "memory_retrieval_total",
+    "memory_retrieved_entries",
+    "memory_top_score",
+    "memory_block_chars",
+    "memory_collect_seconds",
+    "memory_collect_total",
+    "memory_bank_entries",
     "REGISTRY",
 ]
