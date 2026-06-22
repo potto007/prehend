@@ -8,10 +8,14 @@ from dataclasses import dataclass
 import json
 import logging
 import urllib.request
+from typing import TYPE_CHECKING
 
 from prehend.core.srlm import SRLM
 from prehend.core.types import RLMChatCompletion
 from prehend.utils.prompts import RLM_SYSTEM_PROMPT
+
+if TYPE_CHECKING:
+    from prehend.memory.harness import MemoryObserver
 
 _log = logging.getLogger("prehend.harness")
 
@@ -64,6 +68,13 @@ class MemoryConfig:
     # caller learns only from correct solves (avoids poisoning the bank with
     # give-up lessons distilled from failed tasks).
     defer_collect: bool = False
+    # Telemetry sink for retrieve/collect events. Pass
+    # prehend.metrics.memory_observer() to emit the localai_prehend_memory_*
+    # Prometheus series; None -> MemoryHarness installs a no-op NullObserver, so
+    # the no-metrics path is byte-identical. This is the only seam the top-level
+    # Harness(memory=...) API exposes onto build_memory_harness_from_config's
+    # observer= parameter.
+    observer: MemoryObserver | None = None
 
 
 def _default_probe(base_url: str, api_key: str) -> Runtime | None:
@@ -201,6 +212,7 @@ class Harness:
                 reflect_enable_thinking=memory.reflect_enable_thinking,
                 reflect_max_tokens=memory.reflect_max_tokens,
                 defer_collect=memory.defer_collect,
+                observer=memory.observer,
                 **tight,
             )
 

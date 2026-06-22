@@ -38,6 +38,7 @@ Issues = "https://github.com/potto007/prehend/issues"
 Upstream = "https://github.com/alexzhang13/rlm"
 
 [project.optional-dependencies]
+metrics = ["prometheus_client>=0.20.0"]
 modal = ["modal>=0.73.0", "dill>=0.3.7"]
 e2b = ["e2b-code-interpreter>=0.0.11", "dill>=0.3.7"]
 daytona = ["daytona>=0.128.1", "dill>=0.3.7"]

@@ -82,6 +82,31 @@ class TestHarnessMemory:
         assert isinstance(h.solver, MemoryHarness)
         assert h.solver is not h.srlm
 
+    def test_memory_observer_flows_to_harness(self, tmp_path):
+        # The eval reaches the memory layer only via Harness(memory=MemoryConfig);
+        # the observer must thread through to MemoryHarness so the host process
+        # can attach prehend.metrics.memory_observer() and emit the
+        # localai_prehend_memory_* series.
+        sentinel = object()
+        h = _h(memory=MemoryConfig(
+            bank_dir=str(tmp_path / "bank"),
+            embed_model="bge-m3", reflect_model="m",
+            embed_url="http://localhost:8081/v1",
+            observer=sentinel,
+        ))
+        assert h.solver.observer is sentinel
+
+    def test_memory_observer_defaults_to_none_field(self, tmp_path):
+        # Default config carries no observer; MemoryHarness then installs its own
+        # NullObserver (no-op), so the no-metrics path is unaffected.
+        h = _h(memory=MemoryConfig(
+            bank_dir=str(tmp_path / "bank"),
+            embed_model="bge-m3", reflect_model="m",
+            embed_url="http://localhost:8081/v1",
+        ))
+        from prehend.memory.harness import NullObserver
+        assert isinstance(h.solver.observer, NullObserver)
+
 
 class TestHarnessPassthroughs:
     def test_advanced_knobs_reach_srlm(self):
