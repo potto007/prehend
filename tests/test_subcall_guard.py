@@ -4,6 +4,7 @@ import math
 
 from prehend.utils.subcall_guard import (
     oversize_rejection,
+    recommended_chunk_chars,
     safe_chunk_chars,
 )
 
@@ -38,8 +39,11 @@ class TestOversizeRejection:
         rej = oversize_rejection(prompt, limit=98_304, model=MODEL)
         assert rej is not None
         assert "rlm_query_batched" in rej
-        chars = safe_chunk_chars(98_304, MODEL)
+        # The hint recommends the SMALLER target chunk (latency lever), not the
+        # hard ceiling; it must stay strictly below safe_chunk_chars.
+        chars = recommended_chunk_chars(98_304, MODEL)
         assert str(chars) in rej
+        assert chars < safe_chunk_chars(98_304, MODEL)
         assert "char" in rej.lower()
 
     def test_margin_applied_between_safe_and_full(self):
@@ -87,6 +91,24 @@ class TestSafeChunkChars:
         a = safe_chunk_chars(98_304, MODEL, margin_frac=0.10)
         b = safe_chunk_chars(98_304, MODEL, margin_frac=0.30)
         assert b < a
+
+
+class TestRecommendedChunkChars:
+    """recommended_chunk_chars is the small, latency-friendly advisory target -
+    strictly below the safe_chunk_chars hard ceiling, positive, and scaling."""
+
+    def test_positive(self):
+        assert recommended_chunk_chars(98_304, MODEL) > 0
+
+    def test_strictly_below_ceiling(self):
+        assert recommended_chunk_chars(98_304, MODEL) < safe_chunk_chars(98_304, MODEL)
+
+    def test_scales_with_limit(self):
+        assert recommended_chunk_chars(196_608, MODEL) > recommended_chunk_chars(98_304, MODEL)
+
+    def test_clamped_to_ceiling(self):
+        # A frac at/above the ceiling fraction can never exceed safe_chunk_chars.
+        assert recommended_chunk_chars(98_304, MODEL, frac=0.99) <= safe_chunk_chars(98_304, MODEL)
 
 
 def count_estimate(prompt: str) -> int:

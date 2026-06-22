@@ -176,9 +176,18 @@ Regression: test_max_output_chars_default_500; test_subcall_verifier_default_non
   overflow. multihop_007 flipped correct->wrong AND 97s->660s in warm = memory injection
   perturbed it into a timeout (a "memory hurt" case worth a look).
 
-## STATUS: ALL TASKS COMPLETE. Working tree has uncommitted changes (prehend core + tests +
-## ADR-0009 + docs, and rlm-trainer benchmark.py/memory_cold_warm.py). NOT committed (awaiting
-## user). 706 prehend tests green.
+## STATUS: core fix COMMITTED (prehend ab59ed3, rlm-trainer 306cdaf). 706 tests green.
+
+## CHUNK-BUDGET TUNE (perf tail) - IN VALIDATION
+- DECOUPLED the recommended chunk size from the guard ceiling. subcall_guard.py:
+  RECOMMENDED_CHUNK_FRAC=0.30 + recommended_chunk_chars(limit,model) (clamped < safe_chunk_chars).
+  For 98304: ceiling safe_chunk_chars=250674 chars (unchanged, hard reject threshold); RECOMMENDED
+  now 88473 chars (was 250674). rlm.py prompt budget + the rejection hint now use the SMALLER
+  recommended value so the model makes several fast parallel chunks, not 1-2 giant slow ones.
+  Guard still only rejects what genuinely won't fit (ceiling). 3 old tests updated +
+  TestRecommendedChunkChars added; 706 green.
+- Validating v3 (same 3 tasks vs v2 250K-char baseline: 000 424s ok / 001 543s wrong / 002 618s
+  timeout) - expect 002 to complete faster / under 600s. Commit the tune after the result.
 
 ## (historical) COLD/WARM RUN: LAUNCHED (harness task bffjg91v1)
 - Script: ~/eval-runs/mem-v13-plain-multihop-fix-2026-06-22/run-cold-warm.sh

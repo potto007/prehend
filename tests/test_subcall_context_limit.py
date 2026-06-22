@@ -21,7 +21,7 @@ from prehend.core.types import RLMChatCompletion, UsageSummary
 from prehend.environments.local_repl import LocalREPL
 from prehend.utils.prompts import RLM_SYSTEM_PROMPT, build_rlm_system_prompt
 from prehend.utils.token_utils import get_context_limit
-from prehend.utils.subcall_guard import safe_chunk_chars
+from prehend.utils.subcall_guard import recommended_chunk_chars, safe_chunk_chars
 
 MODEL = "gemma-4-12b-it-sft-kb-v13-sft"
 
@@ -153,7 +153,8 @@ class TestLocalREPLGuard:
             result = env._llm_query(prompt)
         assert send.call_count == 0  # never reached the server
         assert "rlm_query_batched" in result
-        assert str(safe_chunk_chars(98304, MODEL)) in result
+        # hint recommends the smaller latency-friendly chunk, not the hard ceiling
+        assert str(recommended_chunk_chars(98304, MODEL)) in result
 
     def test_under_limit_llm_query_passes_through(self):
         env = self._env(subcall_context_limit=98304)
@@ -261,12 +262,14 @@ class TestPromptRealignment:
         assert "rlm_query_batched" in system
         assert "short" in lowered
 
-    def test_rlm_build_passes_safe_chunk_chars(self):
-        # When an RLM has a subcall_context_limit, its system prompt's capacity
-        # reflects safe_chunk_chars(limit, model).
+    def test_rlm_build_passes_recommended_chunk_chars(self):
+        # When an RLM has a subcall_context_limit, its system prompt's chunk
+        # guidance reflects recommended_chunk_chars (the small latency-friendly
+        # target), which is strictly below the safe_chunk_chars hard ceiling.
         rlm = RLM(backend_kwargs={"model_name": MODEL}, max_depth=2,
                   subcall_context_limit=98304)
         msgs = rlm._setup_prompt("context string")
         system = msgs[0]["content"]
-        expected = f"{safe_chunk_chars(98304, MODEL):,}"
+        expected = f"{recommended_chunk_chars(98304, MODEL):,}"
         assert expected in system
+        assert recommended_chunk_chars(98304, MODEL) < safe_chunk_chars(98304, MODEL)

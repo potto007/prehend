@@ -37,7 +37,7 @@ from prehend.utils.prompts import (
     build_user_prompt,
 )
 from prehend.utils.rlm_utils import filter_sensitive_keys
-from prehend.utils.subcall_guard import oversize_rejection, safe_chunk_chars
+from prehend.utils.subcall_guard import oversize_rejection, recommended_chunk_chars
 from prehend.utils.token_utils import count_tokens, get_context_limit
 
 # Injected (as an assistant turn) to force a final answer once iterations are
@@ -487,13 +487,15 @@ class RLM:
         up the initial message history.
         """
         metadata = QueryMetadata(prompt)
-        # When a sub-call context limit is set, advertise the matching safe
-        # per-chunk char budget in the prompt so the model chunks to fit; else
+        # When a sub-call context limit is set, advertise the RECOMMENDED (small,
+        # latency-friendly) per-chunk char budget in the prompt so the model makes
+        # several fast parallel chunks rather than 1-2 giant ones that prefill
+        # slowly; the hard ceiling (safe_chunk_chars) still bounds the guard. Else
         # build_rlm_system_prompt uses its conservative default.
         subcall_char_budget = None
         if self.subcall_context_limit is not None:
             model_name = (self.backend_kwargs or {}).get("model_name", "") or ""
-            subcall_char_budget = safe_chunk_chars(self.subcall_context_limit, model_name)
+            subcall_char_budget = recommended_chunk_chars(self.subcall_context_limit, model_name)
         message_history = build_rlm_system_prompt(
             system_prompt=self.system_prompt,
             query_metadata=metadata,
