@@ -87,6 +87,7 @@ def map_reduce(
     chunk_chars: int,
     reduce_prompt: str | None = None,
     max_reduce_depth: int = 3,
+    overlap_chars: int = 0,
     is_control: Callable[[str], bool] = _is_control,
     compose: Callable[[str, str, str], str] = _compose,
 ) -> MapReduceResult:
@@ -108,10 +109,16 @@ def map_reduce(
     if reduce_prompt is None:
         reduce_prompt = prompt
     chunk_chars = max(1, chunk_chars)
+    # Overlap must be < chunk_chars so the step is positive (else the split would
+    # never advance). Negative overlap is meaningless -> 0.
+    overlap_chars = max(0, min(overlap_chars, chunk_chars - 1))
 
-    # 1. Split context into <= chunk_chars slices (no overlap). Empty context
-    #    yields one empty chunk; never zero chunks.
-    chunks = [context[i : i + chunk_chars] for i in range(0, max(len(context), 1), chunk_chars)]
+    # 1. Split context into <= chunk_chars slices that OVERLAP by overlap_chars,
+    #    so a span straddling a boundary appears in both neighbours (preserves
+    #    cross-chunk links for multi-hop). overlap_chars=0 -> contiguous slices.
+    #    Empty context yields one empty chunk; never zero chunks.
+    step = chunk_chars - overlap_chars
+    chunks = [context[i : i + chunk_chars] for i in range(0, max(len(context), 1), step)]
     n_chunks = len(chunks)
 
     dropped = 0

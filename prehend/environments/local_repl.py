@@ -172,6 +172,13 @@ _SUBCALL_BUDGET_MSG = (
 )
 
 
+# Fraction of each chunk that overlaps its neighbour when the harness auto-chunks
+# an oversized `context=` (ADR-0010). A span straddling a chunk boundary then
+# appears in both chunks, preserving cross-chunk links for multi-hop questions
+# (the partition-validity risk). ~0.15 is a small accuracy hedge with modest cost.
+_SUBCALL_CHUNK_OVERLAP_FRAC = 0.15
+
+
 def _subcall_budget_remaining(count: int, max_subcalls: int | None) -> int | None:
     """Sub-calls still allowed this completion. None = unlimited (disabled).
 
@@ -424,6 +431,7 @@ class LocalREPL(NonIsolatedEnv):
             fits=_fits,
             chunk_chars=chunk_chars,
             reduce_prompt=reduce,
+            overlap_chars=int(chunk_chars * _SUBCALL_CHUNK_OVERLAP_FRAC),
         )
         return result.answer
 

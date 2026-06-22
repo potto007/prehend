@@ -235,6 +235,43 @@ class TestControlFiltering:
         assert res.answer == "real"
 
 
+class TestOverlap:
+    def test_overlap_chunks_share_boundary_text(self):
+        # With overlap, consecutive chunks share `overlap_chars` of text so a
+        # multi-hop link straddling a boundary survives in both chunks.
+        rb = RecordingBatch()
+        ctx = "abcdefghij" * 300  # 3000 chars
+        map_reduce("Q?", ctx, run_batch=rb, fits=_len_fits(100_000),
+                   chunk_chars=1000, overlap_chars=200, compose=_data_only)
+        chunks = rb.calls[0]  # _data_only -> map prompts ARE the chunks
+        assert len(chunks) >= 2
+        # tail of chunk i equals head of chunk i+1
+        assert chunks[0][-200:] == chunks[1][:200]
+
+    def test_overlap_increases_chunk_count_via_smaller_step(self):
+        rb = RecordingBatch()
+        ctx = "z" * 3000
+        map_reduce("Q?", ctx, run_batch=rb, fits=_len_fits(100_000),
+                   chunk_chars=1000, overlap_chars=200, compose=_data_only)
+        # step = chunk_chars - overlap = 800 -> starts at 0,800,1600,2400 = 4 chunks
+        assert len(rb.calls[0]) == 4
+
+    def test_overlap_zero_is_contiguous(self):
+        rb = RecordingBatch()
+        ctx = "z" * 3000
+        map_reduce("Q?", ctx, run_batch=rb, fits=_len_fits(100_000),
+                   chunk_chars=1000, overlap_chars=0, compose=_data_only)
+        assert len(rb.calls[0]) == 3  # contiguous: 0,1000,2000
+
+    def test_overlap_clamped_below_chunk_chars_terminates(self):
+        # overlap >= chunk_chars would make step <= 0 (infinite); must be clamped.
+        rb = RecordingBatch()
+        ctx = "z" * 3000
+        res = map_reduce("Q?", ctx, run_batch=rb, fits=_len_fits(100_000),
+                         chunk_chars=1000, overlap_chars=5000, compose=_data_only)
+        assert res.n_chunks >= 1  # finite, did not hang
+
+
 class TestOrder:
     def test_run_batch_order_preserved_into_reduce(self):
         # distinct chunk contents -> partials echo chunk first char; reduce must

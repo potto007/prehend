@@ -112,6 +112,23 @@ class TestLLMQueryContextDispatch:
         assert send.call_count == 1
         assert sendb.call_count == 0
 
+    def test_mapreduce_passed_nonzero_overlap(self):
+        # the seam threads a positive chunk overlap into the engine so multi-hop
+        # links straddling a chunk boundary survive partition.
+        env = _env(subcall_context_limit=98304)
+        captured = {}
+
+        def fake_map_reduce(prompt, context, **kw):
+            captured.update(kw)
+            from prehend.utils.mapreduce import MapReduceResult
+            return MapReduceResult(answer="X", n_chunks=2, reduce_levels=1,
+                                   truncated=False, dropped=0, budget_exhausted=False)
+
+        with patch("prehend.environments.local_repl.map_reduce", side_effect=fake_map_reduce):
+            env._llm_query("find", context="x" * 150_000)
+        assert captured.get("overlap_chars", 0) > 0
+        assert captured["overlap_chars"] < captured["chunk_chars"]
+
     def test_no_synthetic_pending_call_on_mapreduce_branch(self):
         env = _env(subcall_context_limit=98304)
         big = "x" * 150_000
