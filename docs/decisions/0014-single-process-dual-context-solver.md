@@ -55,7 +55,7 @@ Empirically settled 2026-06-23 on the RTX 5090 (32GB), CUDA 13, v13 model:
 
 ## Decision Outcome
 
-Chosen: **option 1**. Build `llama-rlm-dual-server` in the fork
+Chosen: **option 1**. Build `llama-dual-context-server` in the fork
 `potto007/llama.cpp` (the `diffusion-gemma-server` example already establishes
 the custom-OpenAI-server-target pattern). Refactor `server_context::load_model`
 to accept an optional borrowed `llama_model*` (skip the load, do not free it in
@@ -82,7 +82,7 @@ backend sets `enable_thinking=false`), not a server-level difference.
 - Bad / risks: (1) a custom binary tracks llama.cpp server internals
   (`server_context`, `server-http`) which are not a stable public API - upstream
   bumps may need rework; the shared-model refactor lives in our fork.
-  Specifically, the OpenAI route table in `rlm-dual-server.cpp` is copied
+  Specifically, the OpenAI route table in `dual-context-server.cpp` is copied
   verbatim from `server.cpp`'s `llama_server()` (and the file-static
   `ex_wrapper`), so upstream route additions must be mirrored by hand - a
   known drift point flagged at build time. (2) Model
@@ -102,4 +102,4 @@ backend sets `enable_thinking=false`), not a server-level difference.
   [ADR-0008](0008-high-level-harness-api.md) Harness seam.
 - Evidence + prototypes: `~/src/cuda-llm-weight-share/wsl-experiments/`
   (`multi_ctx_proof.c`, `vmm_cross.cu`, `ipc_cross.cu`).
-- Plan: `docs/superpowers/plans/2026-06-23-dual-context-rlm-server.md`.
+- Plan: `docs/superpowers/plans/2026-06-23-dual-context-server.md`.

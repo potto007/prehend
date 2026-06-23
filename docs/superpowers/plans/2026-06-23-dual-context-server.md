@@ -1,4 +1,4 @@
-# Dual-context RLM server Implementation Plan
+# Dual-context server Implementation Plan
 
 > **For agentic workers:** implement task-by-task; each task ends with an independently checkable deliverable. GPU smoke tests are GATED - do not run anything on the GPU; stop and hand back when the binary builds.
 
@@ -48,11 +48,11 @@
 
 (If `llama-server` already builds a reusable lib, skip this task and link it directly in Task 3.)
 
-## Task 3: New target `examples/rlm-dual-server/`
+## Task 3: New target `examples/dual-context-server/`
 
 **Files (fork):**
-- Create: `examples/rlm-dual-server/CMakeLists.txt` (target `llama-rlm-dual-server`, link the server core lib + llama + cpp-httplib), modeled on `examples/diffusion-gemma-server/CMakeLists.txt`
-- Create: `examples/rlm-dual-server/rlm-dual-server.cpp`
+- Create: `examples/dual-context-server/CMakeLists.txt` (target `llama-dual-context-server`, link the server core lib + llama + cpp-httplib), modeled on `examples/diffusion-gemma-server/CMakeLists.txt`
+- Create: `examples/dual-context-server/dual-context-server.cpp`
 - Modify: `examples/CMakeLists.txt` if it must register the subdir
 
 **Interfaces:**
@@ -60,19 +60,19 @@
 - Produces: a binary that takes `--model`, plus per-role knobs (orchestrator `--orch-ctx N --orch-parallel N`, worker `--worker-ctx N --worker-parallel N --worker-port P`, default ports 8080/8081), loads the model once, runs both roles.
 
 - [ ] **Step 1:** Read `tools/server/main.cpp` to see how ONE `server_context` + `server_http_context` + `server_routes` are wired and how `start_loop()` runs. This is the single-role template to double.
-- [ ] **Step 2:** Write `rlm-dual-server.cpp`: parse args into two `common_params` (role differences: ctx, parallel, port; CoT handled per-request by the client, not the server, matching prehend's `subcall_enable_thinking`); `llama_model * model = llama_model_load_from_file(...)` once; `server_context orch, worker; orch.load_model(p_orch, model); worker.load_model(p_worker, model);`; build a `server_http_context` + `server_routes` for each on its port; run `orch.start_loop()` and `worker.start_loop()` on two threads; join + clean shutdown (terminate both, then `llama_model_free(model)` once).
-- [ ] **Step 3:** Register + build: `cmake --build build -j --target llama-rlm-dual-server`. Expect clean compile + link.
-- [ ] **Step 4:** Static sanity (NO GPU): `./build/bin/llama-rlm-dual-server --help` (or `--version`) prints and exits 0; confirms arg wiring without loading the model.
-- [ ] **Step 5:** Commit (fork): `feat(rlm-dual-server): single-process two-context OpenAI server`.
+- [ ] **Step 2:** Write `dual-context-server.cpp`: parse args into two `common_params` (role differences: ctx, parallel, port; CoT handled per-request by the client, not the server, matching prehend's `subcall_enable_thinking`); `llama_model * model = llama_model_load_from_file(...)` once; `server_context orch, worker; orch.load_model(p_orch, model); worker.load_model(p_worker, model);`; build a `server_http_context` + `server_routes` for each on its port; run `orch.start_loop()` and `worker.start_loop()` on two threads; join + clean shutdown (terminate both, then `llama_model_free(model)` once).
+- [ ] **Step 3:** Register + build: `cmake --build build -j --target llama-dual-context-server`. Expect clean compile + link.
+- [ ] **Step 4:** Static sanity (NO GPU): `./build/bin/llama-dual-context-server --help` (or `--version`) prints and exits 0; confirms arg wiring without loading the model.
+- [ ] **Step 5:** Commit (fork): `feat(dual-context-server): single-process two-context OpenAI server`.
 
 ## Task 4: local-ai - single unit launching the dual server
 
 **Files (local-ai, branch `feat/dual-instance-weight-shared-solver`):**
-- Create: `scripts/localai-llama-rlm-dual.service`
+- Create: `scripts/localai-llama-dual-context.service`
 - Modify: `scripts/llama-server.sh` (replace `recon`/`start-pair`/`stop-pair`/`status-pair` with `start-dual`/`stop-dual`/`status-dual`; drop the LD_PRELOAD/MODEL_SIZE/IPC machinery)
 - Delete: `scripts/localai-llama-solver-orch.service`, `scripts/localai-llama-solver-worker.service` (the IPC two-process units)
 
-- [ ] **Step 1:** Write the unit: `ExecStart=.../llama-rlm-dual-server --model .../v13-sft.Q4_0.gguf --orch-ctx 98304 --orch-parallel 4 --worker-ctx 65536 --worker-parallel 4` plus shared knobs (flash-attn, q4_0 KV, swa-full, cache-reuse, cache-ram, jinja, temp 0); `LD_LIBRARY_PATH=/usr/local/cuda-13/lib64`; NO LD_PRELOAD; one log file.
+- [ ] **Step 1:** Write the unit: `ExecStart=.../llama-dual-context-server --model .../v13-sft.Q4_0.gguf --orch-ctx 98304 --orch-parallel 4 --worker-ctx 65536 --worker-parallel 4` plus shared knobs (flash-attn, q4_0 KV, swa-full, cache-reuse, cache-ram, jinja, temp 0); `LD_LIBRARY_PATH=/usr/local/cuda-13/lib64`; NO LD_PRELOAD; one log file.
 - [ ] **Step 2:** Rewrite the script commands: `start-dual` (assert orphans/ports/VRAM, start unit, wait for BOTH ports), `stop-dual`, `status-dual` (both ports + VRAM + one weights copy). Remove the IPC/recon helpers.
 - [ ] **Step 3:** `bash -n scripts/llama-server.sh` clean. Commit (local-ai).
 
