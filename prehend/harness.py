@@ -124,7 +124,13 @@ def detect_runtime(
 
 
 class Harness:
-    """High-level entry point that assembles SRLM from vetted defaults + resolved runtime."""
+    """High-level entry point that assembles SRLM from vetted defaults + resolved runtime.
+
+    Sub-calls may target a separate weight-shared worker via ``subcall_base_url``
+    (a second llama-server sharing the master's weights over CUDA IPC but with
+    its own private KV pool); budget and fan-out then come from that worker's
+    runtime. ``subcall_base_url=None`` keeps the single-server path. See ADR-0013.
+    """
 
     def __init__(
         self,
