@@ -4,8 +4,41 @@ from prehend.utils.token_utils import (
     CONSERVATIVE_CHARS_PER_TOKEN,
     count_tokens,
     get_context_limit,
+    per_call_subcall_budget,
     resolve_subcall_limit,
 )
+
+
+class TestPerCallSubcallBudget:
+    """The input-size guard limit must be the SHARED kv-unified pool (server
+    n_ctx) divided by the number of concurrent sub-calls, not the whole pool.
+
+    Under --kv-unified the server's n_ctx is ONE pool shared across all
+    concurrent sequences. A single task's map-reduce fans out into up to
+    `slots` concurrent sub-calls, so budgeting each at the full pool lets their
+    SUM exhaust the shared cache ("failed to find free space in the KV cache").
+    Dividing the pool by `slots` bounds the sum; the guard's own margin then
+    reserves headroom for the still-resident root transcript.
+    """
+
+    def test_none_pool_stays_off(self):
+        # No pool -> guard disabled; never start guarding as a side effect.
+        assert per_call_subcall_budget(None, 4) is None
+
+    def test_divides_shared_pool_across_slots(self):
+        assert per_call_subcall_budget(98304, 4) == 24576
+
+    def test_single_slot_uses_whole_pool(self):
+        assert per_call_subcall_budget(98304, 1) == 98304
+
+    def test_nonpositive_slots_treated_as_one(self):
+        # A bad/absent slot count must never divide-by-zero or inflate budget.
+        assert per_call_subcall_budget(98304, 0) == 98304
+        assert per_call_subcall_budget(98304, -3) == 98304
+
+    def test_floors_and_never_below_one(self):
+        assert per_call_subcall_budget(100, 8) == 12   # floor(100 / 8)
+        assert per_call_subcall_budget(3, 8) == 1      # floor 0 -> clamped to 1
 
 
 class TestGetContextLimit:

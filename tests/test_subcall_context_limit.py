@@ -20,7 +20,7 @@ from prehend.core.rlm import RLM
 from prehend.core.types import RLMChatCompletion, UsageSummary
 from prehend.environments.local_repl import LocalREPL
 from prehend.utils.prompts import RLM_SYSTEM_PROMPT, build_rlm_system_prompt
-from prehend.utils.token_utils import get_context_limit
+from prehend.utils.token_utils import get_context_limit, per_call_subcall_budget
 from prehend.utils.subcall_guard import recommended_chunk_chars, safe_chunk_chars
 
 MODEL = "gemma-4-12b-it-sft-kb-v13-sft"
@@ -46,46 +46,56 @@ def _h(**kw):
 # Unit B: limit plumbing
 # --------------------------------------------------------------------------- #
 class TestLimitPlumbing:
+    # These tests pin the PRECEDENCE of the resolved SHARED pool (explicit >
+    # Defaults field > runtime.ctx > get_context_limit) AND the fact that the
+    # Harness threads the per-CALL budget (pool // slots), not the raw pool, so
+    # `slots` concurrent sub-calls cannot exhaust a kv-unified KV cache. All
+    # runtimes here use slots=4. The pure division is covered in
+    # tests/test_token_utils.py::TestPerCallSubcallBudget.
     def test_subcall_context_limit_defaults_to_resolved(self):
-        # No explicit param, no Defaults override -> resolve_subcall_limit uses
-        # runtime.ctx (98304) since that is the first non-None after explicit.
+        # No explicit param, no Defaults override -> resolved pool is runtime.ctx
+        # (98304, the first non-None after explicit), threaded as pool // slots.
         h = _h()
-        assert h.srlm.subcall_context_limit == 98304
+        assert h.srlm.subcall_context_limit == per_call_subcall_budget(98304, 4)
 
     def test_falls_back_to_get_context_limit_when_ctx_unknown(self):
-        # runtime.ctx None and no explicit -> get_context_limit(model) (gemma 262144).
+        # runtime.ctx None and no explicit -> pool = get_context_limit(model)
+        # (gemma 262144), threaded as pool // slots.
         h = Harness(model=MODEL, base_url="http://localhost:9999/v1",
                     runtime=Runtime(slots=4, ctx=None))
-        assert h.srlm.subcall_context_limit == get_context_limit(MODEL)
-        assert h.srlm.subcall_context_limit == 262144
+        assert h.srlm.subcall_context_limit == per_call_subcall_budget(
+            get_context_limit(MODEL), 4
+        )
+        assert h.srlm.subcall_context_limit == per_call_subcall_budget(262144, 4)
 
     def test_explicit_param_overrides(self):
         h = _h(subcall_context_limit=12345)
-        assert h.srlm.subcall_context_limit == 12345
+        assert h.srlm.subcall_context_limit == per_call_subcall_budget(12345, 4)
 
     def test_defaults_field_used_when_no_param(self):
         d = Defaults(subcall_context_limit=55555)
         h = Harness(model=MODEL, base_url="http://localhost:9999/v1",
                     runtime=Runtime(slots=4, ctx=98304), defaults=d)
-        assert h.srlm.subcall_context_limit == 55555
+        assert h.srlm.subcall_context_limit == per_call_subcall_budget(55555, 4)
 
     def test_param_wins_over_defaults_field(self):
         d = Defaults(subcall_context_limit=55555)
         h = Harness(model=MODEL, base_url="http://localhost:9999/v1",
                     runtime=Runtime(slots=4, ctx=98304), defaults=d,
                     subcall_context_limit=77777)
-        assert h.srlm.subcall_context_limit == 77777
+        assert h.srlm.subcall_context_limit == per_call_subcall_budget(77777, 4)
 
     def test_runtime_ctx_threaded_into_limit(self):
         h = Harness(model=MODEL, base_url="http://localhost:9999/v1",
                     runtime=Runtime(slots=4, ctx=65536))
-        assert h.srlm.subcall_context_limit == 65536
+        assert h.srlm.subcall_context_limit == per_call_subcall_budget(65536, 4)
 
     def test_threads_into_environment_kwargs(self):
-        # LocalREPL must receive the limit AND the model name so it can guard.
+        # LocalREPL must receive the per-call limit AND the model name so it can
+        # guard. The limit is the shared pool divided across the slots.
         h = _h(subcall_context_limit=98304)
         env_kw = h.srlm.environment_kwargs
-        assert env_kw["subcall_context_limit"] == 98304
+        assert env_kw["subcall_context_limit"] == per_call_subcall_budget(98304, 4)
         assert env_kw["model_name"] == MODEL
 
     def test_subcall_default_field_is_none(self):

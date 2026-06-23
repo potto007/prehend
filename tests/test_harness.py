@@ -38,6 +38,19 @@ class TestHarnessCore:
         assert h.srlm.max_iterations == VETTED.max_iterations
         assert h.srlm.max_depth == VETTED.max_depth
 
+    def test_subcall_limit_is_shared_pool_divided_by_slots(self):
+        # ctx=98304 is the SHARED kv-unified pool; with slots=4 concurrent
+        # sub-calls the per-call guard budget must be 98304//4 so their sum
+        # cannot exhaust the shared cache.
+        h = _h()  # slots=4, ctx=98304, no explicit subcall_context_limit
+        assert h.srlm.subcall_context_limit == 24576
+
+    def test_explicit_subcall_limit_is_also_split_across_slots(self):
+        # An operator passing the server n_ctx as the limit means the whole
+        # pool; it is still per-call divided by the concurrent-sub-call count.
+        h = _h(subcall_context_limit=98304)
+        assert h.srlm.subcall_context_limit == 24576
+
     def test_auto_runtime_falls_back_when_probe_ambiguous(self):
         h = Harness(model="m", base_url="http://localhost:9999/v1",
                     runtime="auto",

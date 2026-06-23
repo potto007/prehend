@@ -24,5 +24,6 @@ lives in [rlm-trainer `docs/decisions/README.md`](https://github.com/ClearBridge
 | [0009](0009-subcall-input-context-guard.md) | Sub-call input-size context guard (reject-with-hint; 1st input-axis guard) | accepted |
 | [0010](0010-auto-chunk-enforcement-for-oversized-subcalls.md) | Auto-chunk enforcement for oversized sub-calls (`context=` map-reduce) | accepted |
 | [0011](0011-contrastive-failure-memory-channel.md) | Contrastive failure memory channel (negative guard rules from wrong solves) | accepted |
+| [0012](0012-pool-aware-subcall-budget-under-kv-unified.md) | Pool-aware sub-call budget: divide the shared kv-unified pool across concurrent sub-calls | accepted |
 
 `0000-template.md` is the MADR template for new records.

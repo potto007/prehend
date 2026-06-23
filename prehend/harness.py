@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from prehend.core.srlm import SRLM
 from prehend.core.types import RLMChatCompletion
 from prehend.utils.prompts import RLM_SYSTEM_PROMPT
-from prehend.utils.token_utils import resolve_subcall_limit
+from prehend.utils.token_utils import per_call_subcall_budget, resolve_subcall_limit
 
 if TYPE_CHECKING:
     from prehend.memory.harness import MemoryObserver
@@ -164,9 +164,16 @@ class Harness:
             if subcall_context_limit is not None
             else d.subcall_context_limit
         )
-        eff_subcall_limit = resolve_subcall_limit(
+        # The resolved limit is the server's SHARED context pool (n_ctx). Under
+        # --kv-unified that pool is split across the up-to-`slots` concurrent
+        # sub-calls a single map-reduce fans out, so the per-call guard budget
+        # is pool // slots - else their sum exhausts the shared KV cache and the
+        # server 500s every concurrent sub-call ("Context size has been
+        # exceeded"). See token_utils.per_call_subcall_budget.
+        shared_pool = resolve_subcall_limit(
             model, explicit=explicit_limit, runtime_ctx=self.runtime.ctx
         )
+        eff_subcall_limit = per_call_subcall_budget(shared_pool, self.runtime.slots)
 
         backend_kwargs = {
             "model_name": model, "base_url": base_url, "api_key": api_key,

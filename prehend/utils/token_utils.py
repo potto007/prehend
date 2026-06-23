@@ -195,3 +195,28 @@ def resolve_subcall_limit(
     if runtime_ctx is not None:
         return runtime_ctx
     return get_context_limit(model)
+
+
+def per_call_subcall_budget(pool: int | None, slots: int) -> int | None:
+    """Convert a SHARED context pool into a safe PER-CALL sub-call budget.
+
+    Under llama-server ``--kv-unified`` the server's ``n_ctx`` is one KV pool
+    shared across all concurrent sequences, not a private window per slot. A
+    single task's map-reduce fans out into up to ``slots`` concurrent sub-calls
+    (the LocalREPL ThreadPoolExecutor is bounded by ``max_concurrent_subcalls``
+    = ``slots``), so budgeting each sub-call against the WHOLE pool lets their
+    combined footprint exhaust the cache - the server then logs "failed to find
+    free space in the KV cache" and returns "Context size has been exceeded" to
+    every concurrent sub-call at once.
+
+    Dividing the pool by ``slots`` bounds the sum of ``slots`` concurrent calls
+    to the pool; the guard's existing margin (``oversize_rejection`` reserves
+    ~15%) then leaves headroom for the still-resident root orchestrator
+    transcript. ``None`` pool means the guard is off and stays off. A
+    non-positive ``slots`` is treated as 1 (no division, never divide-by-zero).
+    Result is floored and never below 1. Pure.
+    """
+    if pool is None:
+        return None
+    slots = max(1, slots)
+    return max(1, pool // slots)
