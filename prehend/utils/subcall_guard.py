@@ -20,13 +20,19 @@ from prehend.utils.token_utils import (
     count_tokens,
 )
 
-# Fraction of the sub-model window to TARGET per chunk in guidance (distinct from
-# the guard ceiling below). A chunk near the full window prefills slowly and
-# serializes the map-reduce; a chunk at ~this fraction lets several chunks fan
-# out across the server's parallel slots and each prefills fast. ~0.30 -> a large
-# context becomes a handful of chunks instead of 1-2 giant ones. This is advisory
-# (speed); it is NOT the hard limit -- a fitting chunk above it is never rejected.
-RECOMMENDED_CHUNK_FRAC = 0.30
+# Fraction of the sub-call budget to TARGET per chunk in guidance (distinct from
+# the guard ceiling below). This is advisory (speed); it is NOT the hard limit --
+# a fitting chunk above it is never rejected.
+#
+# After ADR-0012 the `limit` handed to these helpers is already the PER-CALL share
+# (pool // slots), so the concurrency headroom that the old 0.30 frac reserved is
+# now baked into the limit itself. Keeping 0.30 on top of the already-divided
+# budget double-discounts: a context splits into many needless tiny chunks that
+# each prefill, saturating all `slots` and inflating latency (the regression seen
+# after ADR-0012). Targeting ~0.50 of the per-call budget makes each of the
+# ~`slots` concurrent chunks fill a majority of its share -> far fewer map-reduce
+# rounds, while staying safely below the reject ceiling.
+RECOMMENDED_CHUNK_FRAC = 0.50
 
 
 def safe_chunk_chars(limit: int, model: str, margin_frac: float = 0.15) -> int:

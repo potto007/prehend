@@ -110,6 +110,14 @@ class TestRecommendedChunkChars:
         # A frac at/above the ceiling fraction can never exceed safe_chunk_chars.
         assert recommended_chunk_chars(98_304, MODEL, frac=0.99) <= safe_chunk_chars(98_304, MODEL)
 
+    def test_fills_most_of_the_budget(self):
+        # After ADR-0012 the limit handed here is already the per-call share
+        # (pool // slots), so the recommended chunk must fill a MAJORITY of the
+        # safe budget - else map-reduce splits a context into many needless
+        # tiny chunks that saturate the slots and inflate latency. Companion to
+        # the pool-aware budget: large chunks, few rounds.
+        assert recommended_chunk_chars(24_576, MODEL) > 0.5 * safe_chunk_chars(24_576, MODEL)
+
 
 def count_estimate(prompt: str) -> int:
     """Helper mirroring how the guard counts the prompt's tokens."""
