@@ -131,6 +131,8 @@ class Harness:
         model: str,
         base_url: str,
         *,
+        subcall_base_url: str | None = None,
+        subcall_runtime: "Runtime | str | None" = None,
         api_key: str = "not-needed",
         timeout: float | None = None,
         runtime: "Runtime | str" = "auto",
@@ -155,6 +157,21 @@ class Harness:
         d = defaults or VETTED
         self.runtime = self._resolve_runtime(runtime, base_url, api_key, d)
 
+        # Dual-instance weight-shared solver (ADR-0013): sub-calls may target a
+        # separate llama-server worker that shares the master's weights via CUDA
+        # IPC but holds its OWN private KV pool. When subcall_base_url is set the
+        # sub-call backend routes there and its budget/fan-out come from the
+        # WORKER's runtime (its dedicated pool, its slots) - not the
+        # orchestrator's. When None, the worker collapses onto the orchestrator
+        # endpoint and behavior is byte-identical to the single-server path.
+        eff_subcall_url = subcall_base_url or base_url
+        if subcall_base_url is None:
+            self.subcall_runtime = self.runtime
+        else:
+            sc_arg = subcall_runtime if subcall_runtime is not None else "auto"
+            self.subcall_runtime = self._resolve_runtime(sc_arg, eff_subcall_url, api_key, d)
+        self.subcall_base_url = eff_subcall_url
+
         # Resolve the effective sub-call context limit once (param > Defaults
         # field > runtime.ctx > get_context_limit(model)). Threaded into the
         # SRLM/RLM (guard + prompt) and the LocalREPL (llm_query guard). No env
@@ -171,15 +188,16 @@ class Harness:
         # server 500s every concurrent sub-call ("Context size has been
         # exceeded"). See token_utils.per_call_subcall_budget.
         shared_pool = resolve_subcall_limit(
-            model, explicit=explicit_limit, runtime_ctx=self.runtime.ctx
+            model, explicit=explicit_limit, runtime_ctx=self.subcall_runtime.ctx
         )
-        eff_subcall_limit = per_call_subcall_budget(shared_pool, self.runtime.slots)
+        eff_subcall_limit = per_call_subcall_budget(shared_pool, self.subcall_runtime.slots)
 
         backend_kwargs = {
             "model_name": model, "base_url": base_url, "api_key": api_key,
             "max_retries": d.max_retries, "stream": d.stream,
         }
         subcall_kwargs = dict(backend_kwargs)
+        subcall_kwargs["base_url"] = eff_subcall_url
         subcall_kwargs["default_extra_body"] = {
             "chat_template_kwargs": {"enable_thinking": d.subcall_enable_thinking}
         }
@@ -199,7 +217,7 @@ class Harness:
             max_depth=d.max_depth,
             max_errors=d.max_errors,
             max_timeout=timeout,
-            max_concurrent_subcalls=self.runtime.slots,
+            max_concurrent_subcalls=self.subcall_runtime.slots,
             soft_timeout_pct=d.soft_timeout_pct,
             logger=logger,
             verbose=False,

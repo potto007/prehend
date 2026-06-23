@@ -51,6 +51,43 @@ class TestHarnessCore:
         h = _h(subcall_context_limit=98304)
         assert h.srlm.subcall_context_limit == 24576
 
+    def test_subcall_base_url_routes_only_the_subcall_backend(self):
+        h = Harness(model="m", base_url="http://localhost:8080/v1",
+                    subcall_base_url="http://localhost:8081/v1",
+                    runtime=Runtime(slots=1, ctx=32768),
+                    subcall_runtime=Runtime(slots=4, ctx=65536))
+        assert h.srlm.backend_kwargs["base_url"] == "http://localhost:8080/v1"
+        assert h.srlm.other_backend_kwargs[0]["base_url"] == "http://localhost:8081/v1"
+
+    def test_subcall_base_url_none_keeps_single_endpoint(self):
+        h = _h()  # no subcall_base_url
+        assert h.srlm.backend_kwargs["base_url"] == "http://localhost:9999/v1"
+        assert h.srlm.other_backend_kwargs[0]["base_url"] == "http://localhost:9999/v1"
+
+    def test_subcall_budget_and_fanout_use_worker_runtime(self):
+        # orchestrator: 1 big slot; worker: 4 slots over a dedicated 65536 pool.
+        h = Harness(model="m", base_url="http://localhost:8080/v1",
+                    subcall_base_url="http://localhost:8081/v1",
+                    runtime=Runtime(slots=1, ctx=32768),
+                    subcall_runtime=Runtime(slots=4, ctx=65536))
+        assert h.srlm.max_concurrent_subcalls == 4          # worker slots, not orchestrator's 1
+        assert h.srlm.subcall_context_limit == 65536 // 4   # worker pool / worker slots
+
+    def test_single_endpoint_budget_unchanged(self):
+        # regression: subcall_base_url=None keeps the shared-pool division.
+        h = _h()  # slots=4, ctx=98304
+        assert h.srlm.max_concurrent_subcalls == 4
+        assert h.srlm.subcall_context_limit == 24576
+
+    def test_worker_runtime_auto_falls_back_when_unreachable(self):
+        # subcall_base_url given but no subcall_runtime: probe fails (port closed)
+        # -> fall back to default slots, ctx None -> guard off for sub-calls.
+        h = Harness(model="m", base_url="http://localhost:8080/v1",
+                    subcall_base_url="http://localhost:9998/v1",
+                    runtime=Runtime(slots=1, ctx=32768))
+        assert h.subcall_runtime.slots == VETTED.max_concurrent_subcalls
+        assert h.srlm.max_concurrent_subcalls == VETTED.max_concurrent_subcalls
+
     def test_auto_runtime_falls_back_when_probe_ambiguous(self):
         h = Harness(model="m", base_url="http://localhost:9999/v1",
                     runtime="auto",
