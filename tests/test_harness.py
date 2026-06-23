@@ -79,6 +79,18 @@ class TestHarnessCore:
         assert h.srlm.max_concurrent_subcalls == 4
         assert h.srlm.subcall_context_limit == 24576
 
+    def test_explicit_subcall_runtime_without_url_is_honored(self):
+        # subcall_runtime supplied but no subcall_base_url: the explicit worker
+        # runtime must drive budget+fan-out, not be silently discarded for the
+        # orchestrator runtime. (subcall backend still collapses to base_url.)
+        h = Harness(model="m", base_url="http://localhost:8080/v1",
+                    runtime=Runtime(slots=1, ctx=32768),
+                    subcall_runtime=Runtime(slots=8, ctx=131072))
+        assert h.subcall_runtime == Runtime(slots=8, ctx=131072)
+        assert h.srlm.max_concurrent_subcalls == 8
+        assert h.srlm.subcall_context_limit == 131072 // 8
+        assert h.srlm.other_backend_kwargs[0]["base_url"] == "http://localhost:8080/v1"
+
     def test_worker_runtime_auto_falls_back_when_unreachable(self):
         # subcall_base_url given but no subcall_runtime: probe fails (port closed)
         # -> fall back to default slots, ctx None -> guard off for sub-calls.

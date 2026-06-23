@@ -171,11 +171,16 @@ class Harness:
         # orchestrator's. When None, the worker collapses onto the orchestrator
         # endpoint and behavior is byte-identical to the single-server path.
         eff_subcall_url = subcall_base_url or base_url
-        if subcall_base_url is None:
+        if subcall_runtime is not None:
+            # An explicit worker runtime always wins (mirrors how `runtime` is
+            # honored for the orchestrator), whether or not a worker URL is set.
+            self.subcall_runtime = self._resolve_runtime(
+                subcall_runtime, eff_subcall_url, api_key, d
+            )
+        elif subcall_base_url is None:
             self.subcall_runtime = self.runtime
         else:
-            sc_arg = subcall_runtime if subcall_runtime is not None else "auto"
-            self.subcall_runtime = self._resolve_runtime(sc_arg, eff_subcall_url, api_key, d)
+            self.subcall_runtime = self._resolve_runtime("auto", eff_subcall_url, api_key, d)
         self.subcall_base_url = eff_subcall_url
 
         # Resolve the effective sub-call context limit once (param > Defaults
