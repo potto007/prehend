@@ -8,6 +8,8 @@ See docs/superpowers/specs/2026-06-22-auto-chunk-enforcement-design.md (source o
 import math
 
 from prehend.utils.mapreduce import (
+    _MAP_SENTINEL_DIRECTIVE,
+    _NO_INFO_SENTINEL,
     MapReduceResult,
     _compose,
     _is_control,
@@ -302,3 +304,73 @@ class TestOrder:
                    chunk_chars=1000, compose=_data_only)
         reduce_input = rb.calls[1][0]
         assert reduce_input.index("A") < reduce_input.index("B") < reduce_input.index("C")
+
+
+class TestNoInfoSentinel:
+    """MAP chunks with nothing relevant return a droppable NO_RELEVANT_INFO
+    sentinel instead of a verbose 'no information' answer. Without this, on a
+    multihop task the one chunk that holds the answer is statistically outvoted
+    by the many 'no info' partials and the reduce loses it (the diagnosed
+    multihop_053 reduce-loss: 1 correct partial vs 15 noise partials)."""
+
+    def test_is_control_drops_sentinel(self):
+        assert _is_control(_NO_INFO_SENTINEL)
+        assert _is_control("  " + _NO_INFO_SENTINEL + "  ")
+        assert _is_control(_NO_INFO_SENTINEL.lower())
+
+    def test_is_control_false_for_real_answer_mentioning_info(self):
+        # A genuine answer that merely contains the word "information" is NOT a
+        # sentinel; only the explicit token is dropped.
+        assert not _is_control("The relevant information is that Alice owns a key.")
+
+    def test_map_instruction_carries_sentinel_directive(self):
+        # The per-chunk MAP prompts must instruct the model to emit the sentinel;
+        # the REDUCE prompt must NOT (a reduce that finds nothing is a real
+        # answer, not a droppable chunk).
+        rb = RecordingBatch(lambda prompts: (
+            [_NO_INFO_SENTINEL] * len(prompts) if len(prompts) > 1 else ["FINAL"]
+        ))
+        ctx = "A" * 1000 + "B" * 1000 + "C" * 1000
+        map_reduce("What does Alice own?", ctx, run_batch=rb,
+                   fits=_len_fits(10_000), chunk_chars=1000)
+        map_prompts = rb.calls[0]
+        assert all(_MAP_SENTINEL_DIRECTIVE in p for p in map_prompts)
+
+    def test_sentinel_partials_excluded_from_reduce(self):
+        # Multihop: chunk 0 holds hop-1, chunk 2 holds hop-2, chunk 1 is noise
+        # and returns the sentinel. The reduce must see ONLY the two real hops.
+        def responder(prompts):
+            if _MAP_SENTINEL_DIRECTIVE in prompts[0]:  # MAP step
+                out = []
+                for p in prompts:
+                    if "ALICE_CHICAGO" in p:
+                        out.append("Alice moved to Chicago")
+                    elif "CHICAGO_KEY" in p:
+                        out.append("The Chicago person owns a golden key")
+                    else:
+                        out.append(_NO_INFO_SENTINEL)
+                return out
+            return ["a golden key"]  # REDUCE step
+        rb = RecordingBatch(responder)
+        ctx = ("ALICE_CHICAGO" + "x" * 987
+               + "noisenoise" + "y" * 990
+               + "CHICAGO_KEY" + "z" * 989)
+        res = map_reduce("What does Alice own?", ctx, run_batch=rb,
+                         fits=_len_fits(100_000), chunk_chars=1000)
+        assert len(rb.calls) >= 2
+        reduce_input = "\n".join(rb.calls[1])
+        assert "Alice moved to Chicago" in reduce_input
+        assert "The Chicago person owns a golden key" in reduce_input
+        assert _NO_INFO_SENTINEL not in reduce_input
+        assert res.dropped == 1
+        assert res.answer == "a golden key"
+
+    def test_all_sentinel_returns_clean_message_not_raw_token(self):
+        # Every chunk irrelevant -> all sentinels -> the answer is a readable
+        # 'no info' message, never the bare NO_RELEVANT_INFO token.
+        rb = RecordingBatch(lambda prompts: [_NO_INFO_SENTINEL] * len(prompts))
+        ctx = "A" * 1000 + "B" * 1000 + "C" * 1000
+        res = map_reduce("What does Alice own?", ctx, run_batch=rb,
+                         fits=_len_fits(10_000), chunk_chars=1000)
+        assert _NO_INFO_SENTINEL not in res.answer
+        assert "no relevant information" in res.answer.lower()

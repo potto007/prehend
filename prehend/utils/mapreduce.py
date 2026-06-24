@@ -23,6 +23,34 @@ from dataclasses import dataclass
 _GUARD_PREFIX = "Sub-call input guard rejected this call:"
 _BUDGET_MARKER = "retrieval budget exhausted"
 
+# Sentinel a MAP chunk returns when it holds nothing relevant to the request.
+# Dropped (like other control strings) BEFORE the reduce so the many no-signal
+# chunks of a sparse/multihop context cannot statistically outvote the one chunk
+# that holds the answer. Diagnosed on multihop_053: the answer-bearing partial
+# ("Alice owns a golden key.") was drowned by 15 verbose "no information about
+# Alice" partials and the reduce concluded "no mention of Alice" (reduce-loss).
+_NO_INFO_SENTINEL = "NO_RELEVANT_INFO"
+
+# Appended to the MAP (per-chunk) instruction only. Phrased to PRESERVE partial
+# hops: a chunk holding an intermediate fact (e.g. "Alice moved to Chicago",
+# which does not itself answer "what does Alice own?") must still report that
+# fact so the reduce can chain hops - only a chunk with NO related fact at all
+# emits the sentinel. Trails the instruction (data-first, ADR-0017) so it does
+# not disturb the cacheable chunk prefix.
+_MAP_SENTINEL_DIRECTIVE = (
+    "\n\nExtract, do not answer. Quote any fact the text above states about a "
+    "person, place, or thing named in the request - INCLUDING background facts "
+    "such as where a named person lives, moves to, or works, which may be needed "
+    "to reach the answer only indirectly through another fact. A fact that names "
+    "any entity from the request is relevant even if it does not mention what the "
+    f"request literally asks. Reply with exactly {_NO_INFO_SENTINEL} and nothing "
+    "else ONLY if the text states no such fact about any entity in the request."
+)
+
+# Clean answer surfaced when EVERY chunk returned the sentinel (truly nothing
+# found anywhere), so the raw token never leaks to the caller.
+_NO_INFO_ANSWER = "No relevant information was found in the provided text."
+
 # Appended to the truncated join when the tree hits max_reduce_depth so the loss
 # is visible in the final reduce input and in logs.
 _TRUNCATE_NOTE = "\n\n[note: reduce truncated at max depth; some partial results omitted]"
@@ -42,10 +70,21 @@ def _compose(instr: str, data: str, label: str = "Text") -> str:
 
 
 def _is_control(text: str) -> bool:
-    """True for a non-answer control string (guard rejection, error, budget msg)."""
+    """True for a non-answer control string (guard rejection, error, budget msg,
+    or the no-info sentinel) - dropped before the reduce so it cannot dilute it."""
     if not isinstance(text, str):
         return False
-    return text.startswith("Error:") or text.startswith(_GUARD_PREFIX)
+    stripped = text.strip()
+    return (
+        stripped.startswith("Error:")
+        or stripped.startswith(_GUARD_PREFIX)
+        or stripped.upper().startswith(_NO_INFO_SENTINEL)
+    )
+
+
+def _is_no_info(text: str) -> bool:
+    """True for the no-info sentinel specifically (a subset of _is_control)."""
+    return isinstance(text, str) and text.strip().upper().startswith(_NO_INFO_SENTINEL)
 
 
 @dataclass
@@ -144,15 +183,26 @@ def map_reduce(
                 real.append(r)
         return real
 
-    # 2. Map: run the instruction over each chunk in one batch.
-    map_raw = run_batch([compose(prompt, c, "Text") for c in chunks])
+    # 2. Map: run the instruction over each chunk in one batch. The MAP
+    #    instruction carries the no-info sentinel directive (the REDUCE prompt
+    #    below does not) so a chunk with no related fact returns a droppable
+    #    sentinel instead of a verbose "no information" answer that would dilute
+    #    the reduce.
+    map_instr = prompt + _MAP_SENTINEL_DIRECTIVE
+    map_raw = run_batch([compose(map_instr, c, "Text") for c in chunks])
     partials = _filter(map_raw)
 
-    # If every map partial was a control string, surface the first verbatim so the
-    # model sees the hint/error rather than an empty answer.
+    # If every map partial was a control string, surface a useful answer rather
+    # than an empty one. When they were all no-info sentinels (nothing relevant
+    # anywhere) return a clean readable message - never the raw token. Otherwise
+    # surface the first control string verbatim so the model sees the hint/error.
     if not partials:
+        if map_raw and all(_is_no_info(r) for r in map_raw):
+            answer = _NO_INFO_ANSWER
+        else:
+            answer = map_raw[0] if map_raw else ""
         return MapReduceResult(
-            answer=map_raw[0] if map_raw else "",
+            answer=answer,
             n_chunks=n_chunks,
             reduce_levels=0,
             truncated=False,
