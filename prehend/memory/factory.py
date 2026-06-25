@@ -99,6 +99,7 @@ def build_memory_harness_from_config(
     tagger: Tagger | None = None,
     reflect_enable_thinking: bool = False,
     reflect_max_tokens: int | None = 512,
+    reflect_temperature: float = 1.0,
     defer_collect: bool = False,
     learn_from_failure: bool = False,
     max_inject_negatives: int = 2,
@@ -128,6 +129,7 @@ def build_memory_harness_from_config(
     reflect = OpenAIReflectFn.from_config(
         base_url=reflect_base_url or base_url, model=reflect_model,
         api_key=reflect_api_key or api_key,
+        temperature=reflect_temperature,
         extra_body={"chat_template_kwargs": {"enable_thinking": reflect_enable_thinking}},
         max_tokens=reflect_max_tokens,
     )

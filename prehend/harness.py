@@ -37,6 +37,17 @@ class Defaults:
     # retry cost is ~0; the run deadline still bounds total wall-clock.
     max_retries: int = 2
     stream: bool = False
+    # The RLM solve path (orchestrator, recursive RLMs, and map-reduce sub-calls)
+    # runs deterministic: temperature 0.0 on every request. Rides in
+    # default_extra_body, the same seam SRLM.candidate_temperature uses, which the
+    # openai client merges into the request body. (The distiller samples at 1.0 -
+    # that lives in the memory layer, MemoryConfig.reflect_temperature.)
+    rlm_temperature: float = 0.0
+    # Sampling seed sent on EVERY solve-path request (orchestrator, recursive
+    # RLMs, and map-reduce sub-calls) via default_extra_body, so a run is
+    # reproducible across the whole inference fan-out. None omits the field
+    # entirely (server-side default RNG), keeping prior behavior byte-identical.
+    seed: int | None = None
     subcall_enable_thinking: bool = False
     max_concurrent_subcalls: int = 4
     soft_timeout_pct: float | None = None
@@ -82,6 +93,9 @@ class MemoryConfig:
     # solve (the dominant memory overhead / GPU-contention source).
     reflect_enable_thinking: bool = False
     reflect_max_tokens: int | None = 512
+    # The distiller samples at temperature 1.0 (diverse lesson phrasings), distinct
+    # from the deterministic RLM solve path (Defaults.rlm_temperature=0.0).
+    reflect_temperature: float = 1.0
     # Defer distillation until Harness.record_outcome(correct), so a scoring
     # caller learns only from correct solves (avoids poisoning the bank with
     # give-up lessons distilled from failed tasks).
@@ -227,14 +241,22 @@ class Harness:
             else per_call_subcall_budget(shared_pool, self.subcall_runtime.slots)
         )
 
+        # Solve-path sampling body shared by the orchestrator and sub-call
+        # backends. seed rides here (same seam as temperature) so it lands on
+        # every chat/completion the OpenAI client makes; None leaves it out.
+        solve_extra_body = {"temperature": d.rlm_temperature}
+        if d.seed is not None:
+            solve_extra_body["seed"] = d.seed
         backend_kwargs = {
             "model_name": model, "base_url": base_url, "api_key": api_key,
             "max_retries": d.max_retries, "stream": d.stream,
+            "default_extra_body": dict(solve_extra_body),
         }
         subcall_kwargs = dict(backend_kwargs)
         subcall_kwargs["base_url"] = eff_subcall_url
         subcall_kwargs["default_extra_body"] = {
-            "chat_template_kwargs": {"enable_thinking": d.subcall_enable_thinking}
+            **solve_extra_body,
+            "chat_template_kwargs": {"enable_thinking": d.subcall_enable_thinking},
         }
         srlm_kwargs = dict(
             backend="openai",
@@ -301,6 +323,7 @@ class Harness:
                 reflect_api_key=memory.reflect_api_key,
                 reflect_enable_thinking=memory.reflect_enable_thinking,
                 reflect_max_tokens=memory.reflect_max_tokens,
+                reflect_temperature=memory.reflect_temperature,
                 defer_collect=memory.defer_collect,
                 learn_from_failure=memory.learn_from_failure,
                 max_inject_negatives=memory.max_inject_negatives,

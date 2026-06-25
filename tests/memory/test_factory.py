@@ -170,6 +170,33 @@ def test_from_config_disables_reflect_thinking_and_caps_tokens_by_default(monkey
     assert isinstance(kw["max_tokens"], int) and kw["max_tokens"] > 0
 
 
+def test_from_config_distiller_uses_temperature_one_by_default(monkeypatch, tmp_path):
+    # The distiller samples lessons at temperature 1.0 (diverse phrasings), unlike
+    # the deterministic RLM solve path. The factory must pass 1.0 to the reflect fn.
+    from prehend.memory.factory import build_memory_harness_from_config
+    seen = {}
+    _patch_backends(monkeypatch, seen)
+    build_memory_harness_from_config(
+        FakeSolver(), tmp_path / "mem",
+        base_url="http://localhost:8080/v1",
+        embed_model="bge-m3", reflect_model="gemma",
+    )
+    assert seen["reflect"]["kw"]["temperature"] == 1.0
+
+
+def test_from_config_reflect_temperature_is_overridable(monkeypatch, tmp_path):
+    from prehend.memory.factory import build_memory_harness_from_config
+    seen = {}
+    _patch_backends(monkeypatch, seen)
+    build_memory_harness_from_config(
+        FakeSolver(), tmp_path / "mem",
+        base_url="http://localhost:8080/v1",
+        embed_model="bge-m3", reflect_model="gemma",
+        reflect_temperature=0.3,
+    )
+    assert seen["reflect"]["kw"]["temperature"] == 0.3
+
+
 def test_from_config_reflect_budget_is_overridable(monkeypatch, tmp_path):
     from prehend.memory.factory import build_memory_harness_from_config
     seen = {}

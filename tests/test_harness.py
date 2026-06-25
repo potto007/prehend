@@ -78,6 +78,23 @@ class TestHarnessCore:
         assert h.srlm.other_backend_kwargs[0]["max_retries"] >= 1  # sub-call client
         assert h.srlm.backend_kwargs["max_retries"] >= 1           # orchestrator client
 
+    def test_rlm_components_use_temperature_zero(self):
+        # Determinism: the orchestrator, recursive RLMs, and the map-reduce
+        # sub-calls must all run at temperature 0.0. Temperature rides in
+        # default_extra_body (same seam candidate_temperature uses, srlm.py),
+        # which the openai client merges into every request body.
+        h = _h()
+        assert h.srlm.backend_kwargs["default_extra_body"]["temperature"] == 0.0
+        assert h.srlm.other_backend_kwargs[0]["default_extra_body"]["temperature"] == 0.0
+
+    def test_subcall_temperature_coexists_with_enable_thinking(self):
+        # The sub-call backend already carries chat_template_kwargs; adding
+        # temperature must not clobber it.
+        h = _h()
+        extra = h.srlm.other_backend_kwargs[0]["default_extra_body"]
+        assert extra["temperature"] == 0.0
+        assert extra["chat_template_kwargs"] == {"enable_thinking": False}
+
     def test_subcall_budget_and_fanout_use_worker_runtime(self):
         # orchestrator: 1 big slot; worker: 4 slots over a dedicated 65536 pool.
         h = Harness(model="m", base_url="http://localhost:8080/v1",
