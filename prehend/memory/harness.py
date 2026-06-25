@@ -269,13 +269,18 @@ class MemoryHarness:
                 outcome = "written"
                 bank_size = len(existing) + 1
             elif prior.get("derived_from") == "failure" and entry.get("derived_from") != "failure":
-                # Success supersedes a failure guard rule for the same question.
+                # Defensive fallback only: since the ADR-0011 amendment, _entry_id
+                # keys on (question, derived_from), so a success and a failure for
+                # the same question get distinct ids and never collide here. Kept
+                # for legacy/question-only banks where they could still alias.
                 updated = [entry if e.get("id") == eid else e for e in existing]
                 self.bank.save(updated)  # same length -> not a shrink -> accepted
                 outcome = "superseded"
                 bank_size = len(updated)
             elif prior.get("derived_from") != "failure" and entry.get("derived_from") == "failure":
-                # A failure must never overwrite or shadow a known-good recipe.
+                # Defensive fallback only (see above): cross-provenance ids no
+                # longer collide, so a failure no longer shadows a known-good
+                # recipe by id - both coexist and injection balances them.
                 outcome = "superseded_skip"
             else:
                 outcome = "duplicate"  # same provenance, one experience per id

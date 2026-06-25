@@ -32,5 +32,6 @@ lives in [rlm-trainer `docs/decisions/README.md`](https://github.com/ClearBridge
 | [0017](0017-data-first-subcall-layout.md) | Data-first sub-call layout (context before instruction) to fix prefix misalignment / re-prefill | accepted |
 | [0018](0018-extraction-map-for-multihop-chaining.md) | Query-independent extraction MAP for multihop chaining | accepted |
 | [0019](0019-fp8-e4m3-kv-cache-for-gemma4-solver.md) | fp8_e4m3 (not fp8_e5m2) for the gemma4 v13 KV cache | accepted |
+| [0020](0020-entry-id-includes-provenance.md) | Experience id keys on (question, provenance) so failure guards and success recipes coexist (amends 0011) | accepted |
 
 `0000-template.md` is the MADR template for new records.
