@@ -310,6 +310,12 @@ class LocalREPL(NonIsolatedEnv):
 
         # Track LLM calls made during code execution
         self._pending_llm_calls: list[RLMChatCompletion] = []
+        # Re-scan fix: persist the query-INDEPENDENT extraction-MAP partials across
+        # iterations so a re-issued llm_query(context=SAME_BIG) reuses the MAP and
+        # re-runs only the cheap REDUCE (keyed by context+chunking inside map_reduce;
+        # only consulted in extraction_map mode). Lives on the env, which is reused
+        # across the run's iterations; keyed by context so distinct tasks never alias.
+        self._map_partials_cache: dict = {}
         # Captured the first time the model sets ``answer["ready"] = True``.
         self._last_final_answer: str | None = None
         # The live exec namespace during execute_code, so a sub-call (llm_query)
@@ -461,6 +467,7 @@ class LocalREPL(NonIsolatedEnv):
             reduce_prompt=reduce,
             overlap_chars=int(chunk_chars * _SUBCALL_CHUNK_OVERLAP_FRAC),
             extraction_map=_SEAM_EXTRACTION_MAP,
+            map_cache=self._map_partials_cache,
         )
         return result.answer
 

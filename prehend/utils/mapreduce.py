@@ -160,6 +160,7 @@ def map_reduce(
     is_control: Callable[[str], bool] = _is_control,
     compose: Callable[[str, str, str], str] = _compose,
     extraction_map: bool = False,
+    map_cache: dict | None = None,
 ) -> MapReduceResult:
     """Map ``prompt`` over chunks of ``context`` and tree-reduce the partials.
 
@@ -180,6 +181,15 @@ def map_reduce(
             survive instead of being filtered as irrelevant to the query); the
             query (``reduce_prompt``, defaulting to ``prompt``) then chains the
             extracted facts at the REDUCE. The multihop CHAINING lever.
+        map_cache: optional caller-owned dict for memoizing the MAP partials
+            ACROSS calls. Used ONLY in ``extraction_map`` mode, where the MAP
+            output is query-INDEPENDENT (depends only on context + chunking), so a
+            re-issued ``llm_query(context=SAME_BIG)`` reuses the expensive MAP and
+            re-runs only the cheap query-driven REDUCE. This kills the orchestrator
+            re-scan (live evidence: ~8-9x re-prefill of a fixed context across
+            iterations). Ignored in legacy mode, where the MAP instruction IS the
+            query and caching across queries would be incorrect. Assumes a stable
+            ``compose`` for a given cache (true at the seam).
     """
     if reduce_prompt is None:
         reduce_prompt = prompt
@@ -219,7 +229,22 @@ def map_reduce(
     #    droppable sentinel instead of a verbose "no information" answer that would
     #    dilute the reduce.
     map_instr = _EXTRACTION_MAP_INSTRUCTION if extraction_map else prompt + _MAP_SENTINEL_DIRECTIVE
-    map_raw = run_batch([compose(map_instr, c, "Text") for c in chunks])
+    # Memoize the query-INDEPENDENT extraction MAP across calls (re-scan fix):
+    # the partials depend only on (context, chunk_chars, overlap_chars) in this
+    # mode, so a re-issued same-context query skips the MAP run_batch and re-runs
+    # only the REDUCE below. Cache the RAW responses and re-filter each time so the
+    # dropped/budget bookkeeping stays correct on a hit. Legacy mode never caches
+    # (its MAP instruction is the query). Disabled when map_cache is None.
+    cache_key = (
+        (chunk_chars, overlap_chars, context)
+        if (extraction_map and map_cache is not None)
+        else None
+    )
+    map_raw = map_cache.get(cache_key) if cache_key is not None else None
+    if map_raw is None:
+        map_raw = run_batch([compose(map_instr, c, "Text") for c in chunks])
+        if cache_key is not None:
+            map_cache[cache_key] = map_raw
     partials = _filter(map_raw)
 
     # If every map partial was a control string, surface a useful answer rather

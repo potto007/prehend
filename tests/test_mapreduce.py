@@ -471,3 +471,84 @@ class TestExtractionMap:
                          extraction_map=True)
         assert _NO_INFO_SENTINEL not in res.answer
         assert "no relevant information" in res.answer.lower()
+
+
+def _fact_or_answer(prompts):
+    """Responder: MAP prompts (carry the extraction instruction) return a fact;
+    everything else (REDUCE) returns a single converging answer."""
+    return ["FACT" if _EXTRACTION_MAP_INSTRUCTION in p else "ANSWER" for p in prompts]
+
+
+def _count_map_sends(rb):
+    """Count extraction-MAP prompts sent across every recorded batch."""
+    return sum(1 for batch in rb.calls for p in batch if _EXTRACTION_MAP_INSTRUCTION in p)
+
+
+class TestMapCacheMemoization:
+    """Re-scan fix: the orchestrator re-issues llm_query(context=BIG) across
+    iterations, and each call re-ran the full map-reduce (live evidence:
+    ~8-9x re-prefill of a 150k-token context, 42% radix reuse). Because the
+    extraction-MAP is query-INDEPENDENT (ADR-0018), its per-chunk output depends
+    only on (context, chunk_chars, overlap), so a caller-owned ``map_cache`` lets
+    repeated same-context calls reuse the MAP and re-run only the cheap REDUCE."""
+
+    def test_extraction_map_memoized_across_calls_with_shared_cache(self):
+        rb = RecordingBatch(_fact_or_answer)
+        ctx = "A" * 1000 + "B" * 1000  # 2 chunks at chunk_chars=1000
+        cache = {}
+        map_reduce("QUERY_ONE", ctx, run_batch=rb, fits=_len_fits(100_000),
+                   chunk_chars=1000, extraction_map=True, map_cache=cache)
+        assert _count_map_sends(rb) == 2  # both chunks mapped on the first call
+        map_reduce("A_DIFFERENT_QUERY_TWO", ctx, run_batch=rb, fits=_len_fits(100_000),
+                   chunk_chars=1000, extraction_map=True, map_cache=cache)
+        # Second call adds ZERO new MAP sends: it reused the cached partials.
+        assert _count_map_sends(rb) == 2
+
+    def test_no_map_cache_reruns_map_each_call(self):
+        rb = RecordingBatch(_fact_or_answer)
+        ctx = "A" * 1000 + "B" * 1000
+        for q in ("Q1", "Q2"):
+            map_reduce(q, ctx, run_batch=rb, fits=_len_fits(100_000),
+                       chunk_chars=1000, extraction_map=True)  # no cache passed
+        assert _count_map_sends(rb) == 4  # 2 chunks x 2 calls (opt-in only)
+
+    def test_legacy_map_not_memoized_even_with_cache(self):
+        # Legacy (non-extraction) MAP instruction IS the user query, so caching
+        # across different queries would be WRONG; the cache must be ignored.
+        rb = RecordingBatch(_fact_or_answer)
+        ctx = "A" * 1000 + "B" * 1000
+        cache = {}
+        for q in ("Q1", "Q2"):
+            map_reduce(q, ctx, run_batch=rb, fits=_len_fits(100_000),
+                       chunk_chars=1000, extraction_map=False, map_cache=cache)
+        legacy_map_sends = sum(
+            1 for batch in rb.calls for p in batch if _MAP_SENTINEL_DIRECTIVE in p
+        )
+        assert legacy_map_sends == 4  # both calls re-map
+
+    def test_map_cache_miss_on_different_context(self):
+        rb = RecordingBatch(_fact_or_answer)
+        cache = {}
+        map_reduce("Q", "A" * 1000 + "B" * 1000, run_batch=rb, fits=_len_fits(100_000),
+                   chunk_chars=1000, extraction_map=True, map_cache=cache)
+        map_reduce("Q", "C" * 1000 + "D" * 1000, run_batch=rb, fits=_len_fits(100_000),
+                   chunk_chars=1000, extraction_map=True, map_cache=cache)
+        assert _count_map_sends(rb) == 4  # different context -> re-map
+
+    def test_cached_map_still_applies_new_query_at_reduce(self):
+        def responder(prompts):
+            if _EXTRACTION_MAP_INSTRUCTION in prompts[0]:
+                return ["fact A", "fact B"]
+            return ["CHAINED"]
+        rb = RecordingBatch(responder)
+        ctx = "A" * 1000 + "B" * 1000
+        cache = {}
+        map_reduce("FIRSTQ", ctx, run_batch=rb, fits=_len_fits(100_000),
+                   chunk_chars=1000, extraction_map=True, map_cache=cache)
+        res = map_reduce("SECOND_UNIQUE_QUERY", ctx, run_batch=rb, fits=_len_fits(100_000),
+                         chunk_chars=1000, extraction_map=True, map_cache=cache)
+        reduce_prompts = [p for batch in rb.calls for p in batch
+                          if _EXTRACTION_MAP_INSTRUCTION not in p]
+        # the reused-MAP second call still drives the REDUCE with the NEW query
+        assert any("SECOND_UNIQUE_QUERY" in p for p in reduce_prompts)
+        assert res.answer  # non-empty

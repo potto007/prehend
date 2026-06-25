@@ -167,6 +167,28 @@ class TestLLMQueryContextDispatch:
         overhead = len(_compose(_EXTRACTION_MAP_INSTRUCTION, "", "Text"))
         assert captured["chunk_chars"] + overhead <= R
 
+    def test_seam_passes_persistent_map_cache_across_calls(self):
+        # Re-scan fix: the orchestrator re-issues llm_query(context=SAME_BIG) across
+        # iterations; the seam must hand map_reduce a PERSISTENT cache so the
+        # query-independent extraction MAP is computed once and reused (live
+        # evidence: ~8-9x re-prefill of a fixed 150k-token context otherwise).
+        env = _env(subcall_context_limit=98304)
+        big = "x" * 150_000
+        seen = []
+
+        def fake_map_reduce(prompt, context, **kw):
+            seen.append(kw.get("map_cache"))
+            from prehend.utils.mapreduce import MapReduceResult
+            return MapReduceResult(answer="X", n_chunks=2, reduce_levels=1,
+                                   truncated=False, dropped=0, budget_exhausted=False)
+
+        with patch("prehend.environments.local_repl.map_reduce", side_effect=fake_map_reduce):
+            env._llm_query("q1", context=big)
+            env._llm_query("q2", context=big)
+        assert len(seen) == 2
+        assert seen[0] is not None              # a cache is provided to the engine
+        assert seen[0] is seen[1]               # the SAME dict persists across calls
+
     def test_no_synthetic_pending_call_on_mapreduce_branch(self):
         env = _env(subcall_context_limit=98304)
         big = "x" * 150_000
