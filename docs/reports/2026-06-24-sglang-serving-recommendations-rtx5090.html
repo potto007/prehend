@@ -335,7 +335,7 @@
 <span class="cfg-label">--kv-cache-dtype</span> fp8_e4m3
 <span class="cfg-label">--attention-backend</span> triton
 <span class="cfg-label">--mem-fraction-static</span> 0.80
-<span class="cfg-label">--cuda-graph-max-bs</span> 16
+<span class="cfg-label">--cuda-graph-max-bs</span> 24
 <span class="cfg-label">--context-length</span> 32768
 <span class="cfg-label">--tp</span> 1</code></pre>
     <p>Run a 3-arm KV-dtype A/B on int4-ct weights (weights fixed, KV isolated):</p>
@@ -345,7 +345,7 @@
                                   <span class="cfg-label"># so eviction does not confound</span>
 <span class="cfg-label">Arm C</span>  --kv-cache-dtype fp8_e5m2   <span class="cfg-label"># only if A loses to B</span></code></pre>
     <p>
-      Use the canonical <code>-w4a16-g32-ct</code> (/7.5 Google-exact) checkpoint, NOT the AutoRound /8 one (different scale schemes). Keep <code>mem-fraction-static 0.80</code> + <code>cuda-graph-max-bs 16</code> (validated; bs=24 capture needs ~5.5–6&nbsp;GB and OOMs at 0.78; <code>0.80 + bs16</code> is the sweet spot, or <code>bs24 @ 0.75</code>).
+      Use the canonical <code>-w4a16-g32-ct</code> (/7.5 Google-exact) checkpoint, NOT the AutoRound /8 one (different scale schemes). Keep <code>mem-fraction-static 0.80</code> + <code>cuda-graph-max-bs 24</code> (validated live 2026-06-25: with <code>context-length 32768</code> bounding the SWA pool to ~96k tokens, the full decode-graph set bs[1..24] captures in ~132&nbsp;s using only 0.05&nbsp;GB — there is no capture-OOM pressure, so use the wider bs24 over bs16 for more decode-graph coverage).
     </p>
 
     <h4>Risks &amp; unknowns</h4>
@@ -432,7 +432,7 @@
   <div class="topic">
     <h4>Recommendation</h4>
     <p>
-      Size everything around one invariant — keep total concurrent sub-call KV demand (<code>slots * subcall_context_limit</code>) at roughly HALF the pool so RadixAttention never evicts the orchestrator transcript prefix. Start from <code>mem-fraction-static 0.80</code>, <code>cuda-graph-max-bs 16</code>, <code>context-length 32768</code>, and a deliberately MODERATE <code>subcall_context_limit</code> (~8k) with concurrency 2, then widen only while prefix reuse stays &ge;90%.
+      Size everything around one invariant — keep total concurrent sub-call KV demand (<code>slots * subcall_context_limit</code>) at roughly HALF the pool so RadixAttention never evicts the orchestrator transcript prefix. Start from <code>mem-fraction-static 0.80</code>, <code>cuda-graph-max-bs 24</code>, <code>context-length 32768</code>, and a deliberately MODERATE <code>subcall_context_limit</code> (~8k) with concurrency 2, then widen only while prefix reuse stays &ge;90%.
     </p>
 
     <h4>Why (grounded in our findings)</h4>
@@ -443,7 +443,7 @@
       It is distinct from the llama.cpp <code>--kv-unified</code> 500-error problem (ADR-0012) — SGLang evicts gracefully (no 500s) but silently tanks cache + latency. <code>dynamic_kv_pool=True</code> (ADR-0016) removes the ADR-0012 per-slot budget DIVISION (no 500s) — but you STILL want a moderate <code>subcall_context_limit</code> for CACHE LOCALITY (safety and locality are different goals).
     </p>
     <p>
-      <code>mem-fraction</code> interacts with cuda-graph capture (project_int4-quant-v13-w4a16): on small int4 weights the KV pool grows greedily and starves capture — bs=24 OOMs at 0.78, captures at 0.75; <code>0.80 + cuda-graph-max-bs 16</code> is validated. Do NOT use <code>--disable-cuda-graph</code> (keeps only piecewise graphs, kills the decode graph). Keep the hybrid SWA pool — <code>--disable-hybrid-swa-memory</code> is a gemma-4 dead-end (sliding layers 4x wider than full; a uniform pool can't hold both widths; <code>store_cache</code> aborts capture with a shape mismatch — NOT OOM).
+      <code>mem-fraction</code> interacts with cuda-graph capture (project_int4-quant-v13-w4a16): the real lever is the <code>context-length</code> cap. WITHOUT it, the default ~98k pool grows greedily and starves capture (the old bisection: bs=24 OOMs at 0.78, captures at 0.75). WITH <code>context-length 32768</code> the SWA pool is bounded to ~96k tokens (~4&nbsp;GB free), so <code>0.80 + cuda-graph-max-bs 24</code> captures the full bs[1..24] set in ~132&nbsp;s for only 0.05&nbsp;GB — validated live 2026-06-25. Do NOT use <code>--disable-cuda-graph</code> (keeps only piecewise graphs, kills the decode graph). Keep the hybrid SWA pool — <code>--disable-hybrid-swa-memory</code> is a gemma-4 dead-end (sliding layers 4x wider than full; a uniform pool can't hold both widths; <code>store_cache</code> aborts capture with a shape mismatch — NOT OOM).
     </p>
     <p>
       <strong>Layout / seam interactions.</strong> ADR-0017 (data-first <code>{label}:\n{data}\n\n{instruction}</code>) is what MAKES the half-pool reuse achievable — stable context leads, identical chunks match at token 0; instruction-first broke token-0 matching (the ~6.4x re-prefill). ADR-0018 (query-independent extraction MAP) lifted multihop 1/5&rarr;5/5 but ENLARGES partials on dense contexts (more reduce tokens, possibly more reduce levels) &rarr; higher reduce-step KV pressure &rarr; another reason to stay conservative.
@@ -455,7 +455,7 @@
 <span class="cfg-label">--kv-cache-dtype</span> fp8_e4m3
 <span class="cfg-label">--attention-backend</span> triton
 <span class="cfg-label">--mem-fraction-static</span> 0.80
-<span class="cfg-label">--cuda-graph-max-bs</span> 16
+<span class="cfg-label">--cuda-graph-max-bs</span> 24
 <span class="cfg-label">--context-length</span> 32768
 <span class="cfg-label">--tp</span> 1
 <span class="cfg-label">--enable-metrics</span></code></pre>
@@ -470,7 +470,7 @@ recommended_chunk_chars     ~ 30% of per-call budget  <span class="cfg-label"># 
     <p>Tuning order (one variable at a time, watch <code>#cached-token</code>):</p>
     <ol>
       <li>Land data-first layout (ADR-0017) + extraction MAP (ADR-0018) FIRST — without them no config makes the cache hit.</li>
-      <li>Fix <code>mem-fraction-static 0.80</code> + <code>cuda-graph-max-bs 16</code>; confirm clean capture.</li>
+      <li>Fix <code>mem-fraction-static 0.80</code> + <code>cuda-graph-max-bs 24</code> + <code>context-length 32768</code>; confirm clean capture (full bs[1..24] set, ~0.05&nbsp;GB).</li>
       <li>Set <code>slots=2</code>, <code>subcall_context_limit=8000</code>; confirm <code>#cached-token &gt;&gt; #new-token</code> (&ge;90%) and ~100s/iter.</li>
       <li>ONLY THEN widen for throughput, one step at a time, holding <code>slots * subcall_context_limit &le; 0.5 * max_total_num_tokens</code>; back off the moment reuse drops or s/iter jumps (the eviction knee).</li>
       <li><code>context-length 32768</code> fits the per-sub-call need; raise only if a single (now-fatter) REDUCE needs it — it costs pool, so re-check the budget.</li>
