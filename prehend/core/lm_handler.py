@@ -138,17 +138,7 @@ class LMRequestHandler(StreamRequestHandler):
         start_time = time.perf_counter()
 
         subcall_kwargs = handler.subcall_kwargs()
-        if getattr(client, "scheduler", None) is not None:
-            # The client's RequestScheduler already bounds concurrency (and adds priority
-            # ordering), so a semaphore on top would only fight its queue.
-            async def run_one(prompt: str):
-                return await _run_one_guarded(prompt)
-        else:
-            sem = asyncio.Semaphore(handler.batch_max_concurrent)
-
-            async def run_one(prompt: str):
-                async with sem:
-                    return await _run_one_guarded(prompt)
+        use_scheduler = getattr(client, "scheduler", None) is not None
 
         async def _run_one_guarded(prompt: str):
             # Per-prompt error isolation. A single sub-call failure (e.g. an
@@ -170,10 +160,38 @@ class LMRequestHandler(StreamRequestHandler):
                 return f"Error: {e}"
 
         async def run_all():
-            tasks = [run_one(prompt) for prompt in to_run]
-            return await asyncio.gather(*tasks)
+            # Build the concurrency primitive ON the loop that runs this batch
+            # (the handler's persistent loop), not the calling server thread.
+            if use_scheduler:
+                # The client's RequestScheduler already bounds concurrency (and adds
+                # priority ordering), so a semaphore on top would only fight its queue.
+                async def run_one(prompt: str):
+                    return await _run_one_guarded(prompt)
+            else:
+                sem = asyncio.Semaphore(handler.batch_max_concurrent)
 
-        executed = iter(asyncio.run(run_all()) if to_run else [])
+                async def run_one(prompt: str):
+                    async with sem:
+                        return await _run_one_guarded(prompt)
+
+            return await asyncio.gather(*(run_one(p) for p in to_run))
+
+        # Run the batch on the handler's PERSISTENT event loop so the AsyncOpenAI
+        # httpx transport binds once and never churns (task #6). The old
+        # asyncio.run(run_all()) created+destroyed a loop PER batch, tearing down
+        # the transport and triggering sglang keepalive-reuse races -> residual
+        # APIConnectionError even with SDK retries. run_coroutine_threadsafe(...)
+        # .result() re-raises Cancellation/Timeout identically to asyncio.run, so
+        # abort semantics are preserved.
+        if not to_run:
+            executed = iter([])
+        else:
+            loop = getattr(handler, "_loop", None)
+            if loop is not None and loop.is_running():
+                executed = iter(asyncio.run_coroutine_threadsafe(run_all(), loop).result())
+            else:
+                # Handler not started or shutting down: fall back to a private loop.
+                executed = iter(asyncio.run(run_all()))
         results = [r if r is not None else next(executed) for r in rejections]
         end_time = time.perf_counter()
 
@@ -234,6 +252,13 @@ class LMHandler:
         self.host = host
         self._server: ThreadingLMServer | None = None
         self._thread: Thread | None = None
+        # One persistent asyncio loop (daemon thread) shared by every batched
+        # sub-call request, so the openai.AsyncOpenAI httpx transport binds ONCE
+        # and never churns. The old asyncio.run()-per-batch path created+destroyed
+        # a loop each batch, tearing down the transport and triggering sglang
+        # keepalive-reuse races -> residual APIConnectionError (task #6).
+        self._loop: "asyncio.AbstractEventLoop | None" = None
+        self._loop_thread: Thread | None = None
         self._port = port
         self.batch_max_concurrent = batch_max_concurrent
         # Generation cap applied to every SUB-call served over the socket
@@ -346,14 +371,33 @@ class LMHandler:
         self._thread = Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
 
+        # Persistent loop for batched sub-calls (see __init__).
+        if self._loop is None:
+            self._loop = asyncio.new_event_loop()
+            self._loop_thread = Thread(target=self._loop.run_forever, daemon=True)
+            self._loop_thread.start()
+
         return self.address
 
     def stop(self):
-        """Stop the socket server."""
+        """Stop the socket server and the persistent batch loop."""
         if self._server:
             self._server.shutdown()
             self._server = None
             self._thread = None
+        if self._loop is not None:
+            # Stop the loop from its own thread, join briefly, then close. A
+            # bounded join (not indefinite) is the only teardown hang risk and is
+            # capped here; daemon=True means a stuck thread still won't block exit.
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            if self._loop_thread is not None:
+                self._loop_thread.join(timeout=5)
+            try:
+                self._loop.close()
+            except Exception:
+                pass
+            self._loop = None
+            self._loop_thread = None
 
     def subcall_kwargs(self) -> dict:
         """Extra completion() kwargs applied to socket-served sub-calls."""

@@ -73,3 +73,43 @@ def test_lm_handler_batched_many_prompts_semaphore_cap():
     for i, resp in enumerate(result):
         assert resp.success, (i, resp.error)
         assert resp.chat_completion.response == f"resp-{i}"
+
+
+def test_lm_handler_batches_share_one_persistent_loop():
+    """Two batches on the same handler run on the SAME event loop (task #6).
+
+    The old asyncio.run()-per-batch path created+destroyed a loop each batch,
+    churning the AsyncOpenAI httpx transport (sglang keepalive-reuse races ->
+    APIConnectionError). The persistent loop must be a single running loop reused
+    across batches.
+    """
+    mock = MockLM(response_fn=lambda p: f"ok:{p}")
+    with LMHandler(client=mock, batch_max_concurrent=4) as handler:
+        loop1 = handler._loop
+        assert loop1 is not None and loop1.is_running()
+        send_lm_request_batched(handler.address, ["a-0", "a-1"])
+        loop2 = handler._loop
+        send_lm_request_batched(handler.address, ["b-0", "b-1"])
+        loop3 = handler._loop
+        # Same loop object across both batches: no per-batch teardown/churn.
+        assert loop1 is loop2 is loop3
+        assert loop3.is_running()
+
+
+def test_lm_handler_stop_tears_down_loop_cleanly():
+    """stop() must close the persistent loop and join its thread (bounded).
+
+    The test simply COMPLETING is the proof that the bounded join did not hang
+    (the one teardown risk Option A introduces).
+    """
+    mock = MockLM(responses=["x"])
+    handler = LMHandler(client=mock)
+    handler.start()
+    loop, thread = handler._loop, handler._loop_thread
+    assert loop is not None and loop.is_running()
+    assert thread is not None and thread.is_alive()
+    handler.stop()
+    assert handler._loop is None
+    assert handler._loop_thread is None
+    assert not thread.is_alive()      # joined within the 5s bound
+    assert not loop.is_running()
