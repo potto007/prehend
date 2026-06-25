@@ -8,7 +8,7 @@ from prehend.utils.prompts import RLM_SYSTEM_PROMPT
 class TestSupportingTypes:
     def test_vetted_defaults(self):
         assert VETTED.max_concurrent_subcalls == 4
-        assert VETTED.max_retries == 0
+        assert VETTED.max_retries == 2  # >0: retry transient APIConnectionError (sglang keepalive race)
         assert VETTED.max_output_chars == 500
 
     def test_defaults_override_is_a_copy(self):
@@ -63,6 +63,20 @@ class TestHarnessCore:
         h = _h()  # no subcall_base_url
         assert h.srlm.backend_kwargs["base_url"] == "http://localhost:9999/v1"
         assert h.srlm.other_backend_kwargs[0]["base_url"] == "http://localhost:9999/v1"
+
+    def test_clients_retry_transient_connection_errors(self):
+        # Map-reduce sub-calls fan out concurrently on the AsyncOpenAI pool, and
+        # lm_handler runs asyncio.run() per batch (event-loop teardown churns the
+        # httpx transport). sglang's uvicorn closes idle keepalives after 5s, so
+        # connection reuse races surface as openai.APIConnectionError. With
+        # max_retries=0 these are un-retried hard errors ("Error: Connection
+        # error.", 5-63/task) that map_reduce then DROPS -> wrong answers. The SDK
+        # retries APIConnectionError on a fresh connection, so both the sub-call
+        # and orchestrator clients must allow >=1 retry. (A/B: 0 retries -> 5.6%
+        # conn errors; 2 retries -> 0% at concurrency 16.)
+        h = _h()
+        assert h.srlm.other_backend_kwargs[0]["max_retries"] >= 1  # sub-call client
+        assert h.srlm.backend_kwargs["max_retries"] >= 1           # orchestrator client
 
     def test_subcall_budget_and_fanout_use_worker_runtime(self):
         # orchestrator: 1 big slot; worker: 4 slots over a dedicated 65536 pool.

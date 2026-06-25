@@ -28,7 +28,14 @@ class Defaults:
     max_iterations: int = 10
     max_depth: int = 2
     max_errors: int = 3
-    max_retries: int = 0
+    # >0 so the OpenAI SDK retries openai.APIConnectionError on a FRESH connection.
+    # sglang's uvicorn closes idle keepalives after 5s; the map-reduce sub-call
+    # batch path (AsyncOpenAI pool + asyncio.run-per-batch loop teardown, conc 16)
+    # churns connections, so reuse races surfaced as un-retried "Error: Connection
+    # error." (5-63/task) that map_reduce dropped -> wrong answers. A/B at conc 16:
+    # 0 retries -> 5.6% conn errors; 2 -> 0%. Connection errors fail fast, so the
+    # retry cost is ~0; the run deadline still bounds total wall-clock.
+    max_retries: int = 2
     stream: bool = False
     subcall_enable_thinking: bool = False
     max_concurrent_subcalls: int = 4
