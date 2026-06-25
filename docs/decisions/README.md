@@ -29,5 +29,8 @@ lives in [rlm-trainer `docs/decisions/README.md`](https://github.com/ClearBridge
 | [0014](0014-single-process-dual-context-solver.md) | Single-process dual-context solver: one `llama_model` backing two `llama_context` (private KV each) | accepted |
 | [0015](0015-inference-engine-evaluation-vllm-sglang.md) | Inference-engine evaluation: spike vLLM and SGLang as single-engine replacements for the dual-context fork | proposed |
 | [0016](0016-sglang-as-served-solver.md) | SGLang as the served solver: retire the dual-context llama.cpp fork (GATE #1 pass; GATE #2 accuracy A/B pending) | proposed |
+| [0017](0017-data-first-subcall-layout.md) | Data-first sub-call layout (context before instruction) to fix prefix misalignment / re-prefill | accepted |
+| [0018](0018-extraction-map-for-multihop-chaining.md) | Query-independent extraction MAP for multihop chaining | accepted |
+| [0019](0019-fp8-e4m3-kv-cache-for-gemma4-solver.md) | fp8_e4m3 (not fp8_e5m2) for the gemma4 v13 KV cache | accepted |
 
 `0000-template.md` is the MADR template for new records.
