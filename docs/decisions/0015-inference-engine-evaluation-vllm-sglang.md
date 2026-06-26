@@ -1,9 +1,15 @@
 ---
-status: "proposed"
+status: "accepted"
 date: "2026-06-23"
 deciders: "potto"
 consulted: "research agents (vLLM, SGLang)"
 ---
+
+> **Resolved (2026-06-26):** the spike ran vLLM-first and vLLM 0.23.0 PASSED
+> Gate #1 (load + decode, TRITON_ATTN auto-selected, fp8 KV = 676k tokens /
+> 20.65x concurrency) and Gate #2 (the previously-timing-out plain-multihop tasks
+> now COMPLETE). Ratified and made production by [ADR-0021](0021-vllm-as-served-solver.md),
+> which supersedes ADR-0013/0014 and ADR-0016.
 
 # Inference-engine evaluation: spike vLLM and SGLang as single-engine replacements for the dual-context llama.cpp fork
 

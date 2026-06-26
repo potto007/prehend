@@ -1,9 +1,14 @@
 ---
-status: "proposed"
+status: "superseded by 0021-vllm-as-served-solver"
 date: "2026-06-24"
 deciders: "potto"
 consulted: "research agents (vLLM, SGLang); observability agent"
 ---
+
+> **Superseded (2026-06-26) by [ADR-0021](0021-vllm-as-served-solver.md).** The
+> SGLang serving path reached a working gate-1 but was never accepted; ADR-0015's
+> lean flipped to vLLM-first and vLLM 0.23.0 was validated as the served solver.
+> SGLang infra is retained for rollback only.
 
 # SGLang as the served solver: retire the dual-context llama.cpp fork
 
