@@ -8,7 +8,7 @@ from prehend.utils.prompts import RLM_SYSTEM_PROMPT
 class TestSupportingTypes:
     def test_vetted_defaults(self):
         assert VETTED.max_concurrent_subcalls == 4
-        assert VETTED.max_retries == 0
+        assert VETTED.max_retries == 2  # >0: retry transient APIConnectionError (sglang keepalive race)
         assert VETTED.max_output_chars == 500
 
     def test_defaults_override_is_a_copy(self):
@@ -51,6 +51,113 @@ class TestHarnessCore:
         h = _h(subcall_context_limit=98304)
         assert h.srlm.subcall_context_limit == 24576
 
+    def test_subcall_base_url_routes_only_the_subcall_backend(self):
+        h = Harness(model="m", base_url="http://localhost:8080/v1",
+                    subcall_base_url="http://localhost:8081/v1",
+                    runtime=Runtime(slots=1, ctx=32768),
+                    subcall_runtime=Runtime(slots=4, ctx=65536))
+        assert h.srlm.backend_kwargs["base_url"] == "http://localhost:8080/v1"
+        assert h.srlm.other_backend_kwargs[0]["base_url"] == "http://localhost:8081/v1"
+
+    def test_subcall_base_url_none_keeps_single_endpoint(self):
+        h = _h()  # no subcall_base_url
+        assert h.srlm.backend_kwargs["base_url"] == "http://localhost:9999/v1"
+        assert h.srlm.other_backend_kwargs[0]["base_url"] == "http://localhost:9999/v1"
+
+    def test_clients_retry_transient_connection_errors(self):
+        # Map-reduce sub-calls fan out concurrently on the AsyncOpenAI pool, and
+        # lm_handler runs asyncio.run() per batch (event-loop teardown churns the
+        # httpx transport). sglang's uvicorn closes idle keepalives after 5s, so
+        # connection reuse races surface as openai.APIConnectionError. With
+        # max_retries=0 these are un-retried hard errors ("Error: Connection
+        # error.", 5-63/task) that map_reduce then DROPS -> wrong answers. The SDK
+        # retries APIConnectionError on a fresh connection, so both the sub-call
+        # and orchestrator clients must allow >=1 retry. (A/B: 0 retries -> 5.6%
+        # conn errors; 2 retries -> 0% at concurrency 16.)
+        h = _h()
+        assert h.srlm.other_backend_kwargs[0]["max_retries"] >= 1  # sub-call client
+        assert h.srlm.backend_kwargs["max_retries"] >= 1           # orchestrator client
+
+    def test_rlm_components_use_temperature_zero(self):
+        # Determinism: the orchestrator, recursive RLMs, and the map-reduce
+        # sub-calls must all run at temperature 0.0. Temperature rides in
+        # default_extra_body (same seam candidate_temperature uses, srlm.py),
+        # which the openai client merges into every request body.
+        h = _h()
+        assert h.srlm.backend_kwargs["default_extra_body"]["temperature"] == 0.0
+        assert h.srlm.other_backend_kwargs[0]["default_extra_body"]["temperature"] == 0.0
+
+    def test_subcall_temperature_coexists_with_enable_thinking(self):
+        # The sub-call backend already carries chat_template_kwargs; adding
+        # temperature must not clobber it.
+        h = _h()
+        extra = h.srlm.other_backend_kwargs[0]["default_extra_body"]
+        assert extra["temperature"] == 0.0
+        assert extra["chat_template_kwargs"] == {"enable_thinking": False}
+
+    def test_subcall_budget_and_fanout_use_worker_runtime(self):
+        # orchestrator: 1 big slot; worker: 4 slots over a dedicated 65536 pool.
+        h = Harness(model="m", base_url="http://localhost:8080/v1",
+                    subcall_base_url="http://localhost:8081/v1",
+                    runtime=Runtime(slots=1, ctx=32768),
+                    subcall_runtime=Runtime(slots=4, ctx=65536))
+        assert h.srlm.max_concurrent_subcalls == 4          # worker slots, not orchestrator's 1
+        assert h.srlm.subcall_context_limit == 65536 // 4   # worker pool / worker slots
+
+    def test_single_endpoint_budget_unchanged(self):
+        # regression: subcall_base_url=None keeps the shared-pool division.
+        h = _h()  # slots=4, ctx=98304
+        assert h.srlm.max_concurrent_subcalls == 4
+        assert h.srlm.subcall_context_limit == 24576
+
+    def test_explicit_subcall_runtime_without_url_is_honored(self):
+        # subcall_runtime supplied but no subcall_base_url: the explicit worker
+        # runtime must drive budget+fan-out, not be silently discarded for the
+        # orchestrator runtime. (subcall backend still collapses to base_url.)
+        h = Harness(model="m", base_url="http://localhost:8080/v1",
+                    runtime=Runtime(slots=1, ctx=32768),
+                    subcall_runtime=Runtime(slots=8, ctx=131072))
+        assert h.subcall_runtime == Runtime(slots=8, ctx=131072)
+        assert h.srlm.max_concurrent_subcalls == 8
+        assert h.srlm.subcall_context_limit == 131072 // 8
+        assert h.srlm.other_backend_kwargs[0]["base_url"] == "http://localhost:8080/v1"
+
+    def test_worker_runtime_auto_falls_back_when_unreachable(self):
+        # subcall_base_url given but no subcall_runtime: probe fails (port closed)
+        # -> fall back to default slots, ctx None -> guard off for sub-calls.
+        h = Harness(model="m", base_url="http://localhost:8080/v1",
+                    subcall_base_url="http://localhost:9998/v1",
+                    runtime=Runtime(slots=1, ctx=32768))
+        assert h.subcall_runtime.slots == VETTED.max_concurrent_subcalls
+        assert h.srlm.max_concurrent_subcalls == VETTED.max_concurrent_subcalls
+
+    def test_direct_completion_uses_orchestrator_not_worker(self, monkeypatch):
+        # Direct mode (short context bypasses the REPL) is a top-level solve, so
+        # it must hit the orchestrator (CoT-on master), NOT the sub-call worker
+        # (CoT-off). Under dual-instance these are different servers.
+        import prehend.core.srlm as srlm_mod
+        captured = {}
+
+        class FakeClient:
+            def completion(self, messages):
+                return "answer"
+
+            def get_usage_summary(self):
+                return {}
+
+        def fake_get_client(backend, kw):
+            captured["base_url"] = (kw or {}).get("base_url")
+            return FakeClient()
+
+        monkeypatch.setattr(srlm_mod, "get_client", fake_get_client)
+        h = Harness(model="m", base_url="http://localhost:8080/v1",
+                    subcall_base_url="http://localhost:8081/v1",
+                    runtime=Runtime(slots=1, ctx=32768),
+                    subcall_runtime=Runtime(slots=4, ctx=65536),
+                    direct_threshold=10_000)
+        h.srlm.completion("short context")  # len < 10000 -> direct mode
+        assert captured["base_url"] == "http://localhost:8080/v1"
+
     def test_auto_runtime_falls_back_when_probe_ambiguous(self):
         h = Harness(model="m", base_url="http://localhost:9999/v1",
                     runtime="auto",
@@ -90,7 +197,7 @@ class TestHarnessMemory:
         h = _h(memory=MemoryConfig(
             bank_dir=str(tmp_path / "bank"),
             embed_model="bge-m3", reflect_model="m",
-            embed_url="http://localhost:8081/v1",
+            embed_url="http://localhost:8084/v1",
         ))
         assert isinstance(h.solver, MemoryHarness)
         assert h.solver is not h.srlm
@@ -104,10 +211,30 @@ class TestHarnessMemory:
         h = _h(memory=MemoryConfig(
             bank_dir=str(tmp_path / "bank"),
             embed_model="bge-m3", reflect_model="m",
-            embed_url="http://localhost:8081/v1",
+            embed_url="http://localhost:8084/v1",
             observer=sentinel,
         ))
         assert h.solver.observer is sentinel
+
+    def test_memory_freeze_retrieval_threads_to_harness(self, tmp_path):
+        # The cold/warm eval drives the memory layer only via Harness(memory=...);
+        # freeze_retrieval must thread through so the cold phase can write-without-
+        # retrieving (true first-exposure baseline).
+        h = _h(memory=MemoryConfig(
+            bank_dir=str(tmp_path / "bank"),
+            embed_model="bge-m3", reflect_model="m",
+            embed_url="http://localhost:8084/v1",
+            freeze_retrieval=True,
+        ))
+        assert h.solver.freeze_retrieval is True
+
+    def test_memory_freeze_retrieval_defaults_false(self, tmp_path):
+        h = _h(memory=MemoryConfig(
+            bank_dir=str(tmp_path / "bank"),
+            embed_model="bge-m3", reflect_model="m",
+            embed_url="http://localhost:8084/v1",
+        ))
+        assert h.solver.freeze_retrieval is False
 
     def test_memory_observer_defaults_to_none_field(self, tmp_path):
         # Default config carries no observer; MemoryHarness then installs its own
@@ -115,7 +242,7 @@ class TestHarnessMemory:
         h = _h(memory=MemoryConfig(
             bank_dir=str(tmp_path / "bank"),
             embed_model="bge-m3", reflect_model="m",
-            embed_url="http://localhost:8081/v1",
+            embed_url="http://localhost:8084/v1",
         ))
         from prehend.memory.harness import NullObserver
         assert isinstance(h.solver.observer, NullObserver)

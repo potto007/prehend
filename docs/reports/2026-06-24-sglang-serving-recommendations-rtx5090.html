@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SGLang Serving Recommendations — RLM Solver on RTX 5090</title>
+<style>
+  :root {
+    --accent: #0f6e6e;
+    --accent-dark: #0a4f4f;
+    --ink: #1b2227;
+    --muted: #5a6772;
+    --rule: #d8dee3;
+    --bg: #ffffff;
+    --code-bg: #f4f6f8;
+    --code-border: #e0e6ea;
+    --green: #1f7a3d;
+    --green-bg: #e7f5ec;
+    --amber: #9a6700;
+    --amber-bg: #fdf3e0;
+    --red: #b3261e;
+    --red-bg: #fde9e8;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: #eef1f3;
+    margin: 0;
+    line-height: 1.65;
+    font-size: 16px;
+  }
+  .page {
+    max-width: 860px;
+    margin: 32px auto;
+    background: var(--bg);
+    padding: 56px 64px 72px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.06);
+    border-radius: 4px;
+  }
+  h1 {
+    font-size: 1.85rem;
+    line-height: 1.25;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 1rem;
+    margin: 0 0 4px;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 0.86rem;
+    margin: 0;
+  }
+  .status-note {
+    margin: 18px 0 0;
+    padding: 8px 14px;
+    border-left: 3px solid var(--amber);
+    background: var(--amber-bg);
+    font-size: 0.86rem;
+    color: var(--amber);
+    font-weight: 600;
+    border-radius: 0 3px 3px 0;
+  }
+  h2 {
+    font-size: 1.3rem;
+    margin: 48px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+    color: var(--accent-dark);
+    letter-spacing: -0.01em;
+  }
+  h3 {
+    font-size: 1.08rem;
+    margin: 30px 0 8px;
+    color: var(--ink);
+  }
+  h4 {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin: 20px 0 6px;
+    font-weight: 700;
+  }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+  .lead {
+    font-size: 1.04rem;
+    color: #2c363d;
+  }
+  hr.divider {
+    border: none;
+    border-top: 1px solid var(--rule);
+    margin: 40px 0;
+  }
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 8px;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    background: #f0f4f5;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  tr:last-child td { border-bottom: none; }
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 3px 11px;
+    border-radius: 12px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  .badge-green { background: var(--green-bg); color: var(--green); border: 1px solid #b7e0c4; }
+  .badge-amber { background: var(--amber-bg); color: var(--amber); border: 1px solid #efd9a8; }
+  .badge-red { background: var(--red-bg); color: var(--red); border: 1px solid #f1c2bf; }
+  /* Callouts */
+  .callout {
+    margin: 18px 0;
+    padding: 14px 18px;
+    border-radius: 4px;
+    border-left: 5px solid;
+    font-size: 0.96rem;
+  }
+  .callout .callout-title {
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .callout-red { background: var(--red-bg); border-color: var(--red); }
+  .callout-red .callout-title { color: var(--red); }
+  .callout-amber { background: var(--amber-bg); border-color: var(--amber); }
+  .callout-amber .callout-title { color: var(--amber); }
+  .callout-green { background: var(--green-bg); border-color: var(--green); }
+  .callout-green .callout-title { color: var(--green); }
+  /* Code */
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--code-border);
+  }
+  pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    background: #1d2730;
+    color: #e6edf1;
+    padding: 14px 18px;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin: 12px 0 16px;
+    border: 1px solid #11181e;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font-size: 1em;
+  }
+  pre .cfg-label {
+    color: #67c7c0;
+    font-weight: 600;
+  }
+  .topic {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 4px 26px 22px;
+    margin: 26px 0;
+    background: #fcfdfd;
+  }
+  ol li, ul li { margin-bottom: 8px; }
+  .priorities li { margin-bottom: 12px; }
+  .priorities strong { color: var(--accent-dark); }
+  footer {
+    margin-top: 48px;
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  footer h2 {
+    font-size: 1rem;
+    border: none;
+    margin: 0 0 8px;
+    padding: 0;
+  }
+  footer code { font-size: 0.8em; }
+  details {
+    margin: 10px 0;
+  }
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 0.9rem;
+  }
+  .kicker {
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-style: italic;
+  }
+  @media print {
+    body { background: #fff; font-size: 11pt; }
+    .page { box-shadow: none; margin: 0; max-width: none; padding: 0 12mm; border-radius: 0; }
+    pre { background: #f4f6f8; color: #11181e; border: 1px solid #ccc; }
+    pre .cfg-label { color: #0a4f4f; }
+    h2 { page-break-after: avoid; }
+    .topic, .callout, table { page-break-inside: avoid; }
+    .status-note { background: #fff; }
+  }
+  @media (max-width: 640px) {
+    .page { padding: 28px 20px; margin: 0; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header>
+    <h1>SGLang Serving Recommendations — RLM Solver on RTX 5090</h1>
+    <p class="subtitle">Model: gemma-4-12B (Gnosis-MedPolicy-13, v13) — single RTX 5090 / SM_120 / WSL2</p>
+    <p class="meta">Date: 2026-06-24 &nbsp;·&nbsp; Engineering advisory</p>
+    <p class="status-note">Status: advisory — ADR-0016 remains PROPOSED, not accepted. Do not flip serving defaults until the GATE&nbsp;#2 accuracy A/B clears.</p>
+  </header>
+
+  <h2>Executive Summary</h2>
+  <p class="lead">
+    Three serving decisions are on the table for the RLM solver, and the verdicts diverge sharply.
+    <strong>KV-cache quantization</strong> stays on <code>fp8_e4m3</code> in production but is only an <em>amber</em> keep: its effect on long-context retrieval accuracy is unvalidated and is a prime suspect in the GATE&nbsp;#2 accuracy gap, so it must be A/B'd against bf16 KV.
+    <strong>Speculative decoding (DFlash)</strong> is a flat <em>NO-GO</em>: it structurally zeroes out our dominant latency lever (RadixAttention prefix reuse) and targets a low-batch decode regime we never enter.
+    <strong>Config tuning</strong> is the <em>green</em>, actionable win: size everything around one invariant so the orchestrator prefix is never evicted.
+    The single cross-cutting priority above all others is to run the GATE&nbsp;#2 accuracy A/B before promoting any default — the stack's gate is accuracy (~0 correct on small samples), not latency, and three suspects (fp8 KV precision, the gemma4 chat-template/thinking-mode, and small-sample variance) must be disentangled first.
+  </p>
+
+  <h2>Verdict at a Glance</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Topic</th>
+        <th>Verdict</th>
+        <th>One-line recommendation</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>KV quantization</strong></td>
+        <td><span class="badge badge-amber">Validate first</span></td>
+        <td>Keep <code>fp8_e4m3</code> KV in production, but A/B it against bf16 KV on int4-ct weights before declaring it accuracy-safe.</td>
+      </tr>
+      <tr>
+        <td><strong>Speculative decoding (DFlash)</strong></td>
+        <td><span class="badge badge-red">No-go</span></td>
+        <td>Leave speculative decoding OFF — it kills prefix-cache reuse (#40624) and helps a regime we never reach.</td>
+      </tr>
+      <tr>
+        <td><strong>Config tuning</strong></td>
+        <td><span class="badge badge-green">Adopt</span></td>
+        <td>Keep <code>slots * subcall_context_limit</code> at ~½ the pool so RadixAttention never evicts the orchestrator prefix.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Use-case context</h3>
+  <p>
+    The RLM pattern: a solver/orchestrator writes programs in a REPL that slice, search, and recursively query a large offloaded context (a ~314k-char multihop needle-in-haystack), driving co-batched map-reduce sub-calls. The workload is <strong>prefill-heavy</strong> and <strong>prefix-cache-heavy</strong> — a long shared system-prompt prefix plus the same context chunks reused across hops, so RadixAttention prefix reuse is the dominant latency lever. Hardware is one RTX 5090 (32&nbsp;GB, Blackwell consumer SM_120) under WSL2. The model is gemma-4-12B (<code>gemma4_unified</code>, text-only), served on <code>:8080</code>.
+  </p>
+  <p>Current baseline config:</p>
+  <pre><code><span class="cfg-label">--quantization</span> compressed-tensors      <span class="cfg-label"># W4A16-g32-CT</span>
+<span class="cfg-label">--kv-cache-dtype</span> fp8_e4m3
+<span class="cfg-label">--attention-backend</span> triton
+<span class="cfg-label">--mem-fraction-static</span> 0.80
+<span class="cfg-label">--context-length</span> 32768
+<span class="cfg-label">--cuda-graph-max-bs</span> 24
+<span class="cfg-label">--tp</span> 1</code></pre>
+
+  <hr class="divider">
+
+  <!-- ================= TOPIC 1 ================= -->
+  <h2>Topic 1 — KV-Cache Quantization on the RTX 5090</h2>
+
+  <div class="callout callout-amber">
+    <span class="callout-title">Amber — keep, but unvalidated</span>
+    <code>fp8_e4m3</code> KV is currently mandatory for <strong>capacity</strong>, not chosen for <strong>accuracy</strong>. Its effect on long-context retrieval is genuinely untested and is one of three candidate root-causes of the GATE&nbsp;#2 accuracy failure. It must be A/B'd against bf16 KV before it is declared safe.
+  </div>
+
+  <div class="topic">
+    <h4>Recommendation</h4>
+    <p>
+      Keep <code>--kv-cache-dtype fp8_e4m3</code> as the production KV dtype, but treat its retrieval-accuracy effect as UNVALIDATED — it is the open variable in the GATE&nbsp;#2 accuracy gap and must be A/B'd against bf16 KV (now that int4-ct weights free the pool) before it is declared safe. Do NOT chase <code>q8_0</code> KV or TurboQuant.
+    </p>
+
+    <h4>Why (grounded in our findings)</h4>
+    <p>
+      fp8 KV is currently mandatory for capacity, not accuracy. bf16 weights (24.6&nbsp;GB) left <code>max_total_num_tokens=194</code> (a KV-starved scheduler spin); fp8 weights (12.8&nbsp;GB) plus <code>fp8_e4m3</code> KV gave a ~98k-token pool (project_sglang-v13-serving-gate1).
+    </p>
+    <p>
+      The KV-dtype choice is now <strong>decoupled</strong> from pool pressure by int4-ct weights (~8.5&nbsp;GB, the canonical <code>-w4a16-g32-ct</code> /7.5 Google-exact scheme, project_int4-quant-v13-w4a16). With weights that small, bf16 KV becomes affordable — which is precisely what enables the test of whether fp8 KV costs retrieval accuracy.
+    </p>
+    <p>
+      fp8 KV precision is explicitly one of three candidate root-causes of the GATE&nbsp;#2 accuracy failure (ADR-0016 §GATE&nbsp;#2 item b; project_sglang-radixattention-pool-tuning): plain-multihop scored ~0 correct, and lossy KV on haystack tokens can blur the needle in ~314k-char retrieval.
+    </p>
+    <p>
+      <code>q8_0</code> KV is a llama.cpp GGML format, NOT an SGLang <code>--kv-cache-dtype</code> — the right SGLang A/B is <code>fp8_e4m3</code> vs bf16 KV; llama <code>q8_0</code> is the accuracy baseline-to-beat on a different engine. TurboQuant is correctly iceboxed (project_turboquant-iceboxed): 4-bit KV only wins when memory is THE binding constraint (we are not, on the fp8 hybrid-SWA pool: ~105k SWA + ~131k full), and TQ taxes prefill (WHT rotation + quantize + pack, 56–75% of bf16, worse with length) — a direct hit on our prefill-heavy profile. vLLM's study found FP8 dominates the Pareto frontier; TQ k8v4 gives no advantage over FP8.
+    </p>
+
+    <h4>Concrete config / values</h4>
+    <p>Keep the current int4-ct baseline:</p>
+    <pre><code><span class="cfg-label">--quantization</span> compressed-tensors
+<span class="cfg-label">--kv-cache-dtype</span> fp8_e4m3
+<span class="cfg-label">--attention-backend</span> triton
+<span class="cfg-label">--mem-fraction-static</span> 0.80
+<span class="cfg-label">--cuda-graph-max-bs</span> 24
+<span class="cfg-label">--context-length</span> 32768
+<span class="cfg-label">--tp</span> 1</code></pre>
+    <p>Run a 3-arm KV-dtype A/B on int4-ct weights (weights fixed, KV isolated):</p>
+    <pre><code><span class="cfg-label">Arm A</span>  --kv-cache-dtype fp8_e4m3   <span class="cfg-label"># incumbent</span>
+<span class="cfg-label">Arm B</span>  --kv-cache-dtype auto       <span class="cfg-label"># bf16/fp16 KV, now feasible</span>
+                                  <span class="cfg-label"># pair with reduced subcall_context_limit</span>
+                                  <span class="cfg-label"># so eviction does not confound</span>
+<span class="cfg-label">Arm C</span>  --kv-cache-dtype fp8_e5m2   <span class="cfg-label"># only if A loses to B</span></code></pre>
+    <p>
+      Use the canonical <code>-w4a16-g32-ct</code> (/7.5 Google-exact) checkpoint, NOT the AutoRound /8 one (different scale schemes). Keep <code>mem-fraction-static 0.80</code> + <code>cuda-graph-max-bs 24</code> (validated live 2026-06-25: with <code>context-length 32768</code> bounding the SWA pool to ~96k tokens, the full decode-graph set bs[1..24] captures in ~132&nbsp;s using only 0.05&nbsp;GB — there is no capture-OOM pressure, so use the wider bs24 over bs16 for more decode-graph coverage).
+    </p>
+
+    <h4>Risks &amp; unknowns</h4>
+    <ul>
+      <li>fp8-KV accuracy effect on long-context retrieval is genuinely UNTESTED — the headline unknown.</li>
+      <li>SM_120 caveat: only <code>--attention-backend triton</code> is viable on gemma-4/SM_120 (flashinfer gemma4-forbidden; <code>trtllm_mha</code> ValueErrors on SM_120, #14814). FP8 block-wise had SM_120 gaps (#9233) but our per-token <code>fp8_e4m3</code> KV works — a watch-item, not a blocker.</li>
+      <li>Confounds: the GATE&nbsp;#2 gap also has two other suspects (small-sample variance; chat-template / thinking-mode under <code>auto reasoning_parser=gemma4</code>) — the KV A/B must control these.</li>
+      <li>A pre-quantized fp8 checkpoint on disk (vs ~17s online re-quant) does NOT change the KV-dtype choice — it only speeds startup.</li>
+    </ul>
+
+    <h4>What to measure</h4>
+    <ul>
+      <li><strong>PRIMARY:</strong> multihop retrieval accuracy (correct-answer rate) on the plain-multihop subset, fp8 vs bf16 KV, on int4-ct weights, memory off first then on.</li>
+      <li>Pool size: <code>max_total_num_tokens</code> per arm.</li>
+      <li>Per-Prefill-batch <code>#cached-token</code> vs <code>#new-token</code> from the server LOG (NOT the <code>cache_hit_rate</code> Prometheus gauge, which reads <code>0.000</code> when idle).</li>
+      <li>Latency (s/iter) as a tiebreaker only — accuracy is the gate.</li>
+    </ul>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ================= TOPIC 2 ================= -->
+  <h2>Topic 2 — Speculative Decoding (DFlash)</h2>
+
+  <div class="callout callout-red">
+    <span class="callout-title">Red — NO-GO</span>
+    Do not enable DFlash / EAGLE-style speculative decoding for this workload. Two independent disqualifiers: (1) it structurally fights our single most important lever — DFlash + gemma-4 hybrid attention gives ~0% prefix-cache hits (#40624); and (2) spec-decode helps low-batch decode, while our workload is prefill-bound and batch-saturated, so the regime where it pays never occurs.
+  </div>
+
+  <div class="topic">
+    <h4>Recommendation</h4>
+    <p>
+      NO-GO. Leave speculative decoding OFF. The two disqualifiers above are independent — either alone is sufficient, and together they make a net win effectively impossible for this workload.
+    </p>
+
+    <h4>Why (grounded in our findings)</h4>
+    <p>
+      <strong>The prefix-cache conflict is decisive for US specifically.</strong> Recorded research (ADR-0015 §Option&nbsp;2; 0015-research-vllm #40624) found "Gemma4 0% prefix-cache hits when hybrid-attention + DFlash speculative decoding are combined (3 KV-cache specs &rarr; block-dropping spiral)," open as of April 2026, with the existing fix (#33524) only guarding 2-group models. For a generic workload that is an annoyance; for us it is fatal, because prefix reuse is the dominant latency lever (ADR-0017 / project_data-first-subcall-layout — we just drove ~6.4x re-prefill toward ~1x). DFlash would zero out exactly the cache hits we engineered for. (This 0% finding was on vLLM; the SGLang DFlash equivalent is untested here, but the mechanism is engine-independent enough to treat as a hard risk.)
+    </p>
+    <p>
+      <strong>Wrong bottleneck regime.</strong> Spec-decode accelerates memory-bound LOW-BATCH decode; our workload is prefill-heavy (~314k-char contexts, ADR-0010/0017) and batch-saturated (ADR-0016 GATE&nbsp;#2: co-batching scales to concurrency ~16–24, agg ~680&rarr;1461 tok/s). Spec-decode's win shrinks toward zero as the batch fills, and does nothing for prefill.
+    </p>
+    <p>
+      <strong>Feasibility (moot, but also negative).</strong> The draft is a GGUF (<code>dflash-draft-3.6-q4_k_m.gguf</code>, ~1.06&nbsp;GB) while the target is a text-only <code>Gemma4ForCausalLM</code> from a CT/fp8 checkpoint — the target CANNOT be GGUF (GGUF is SGLang's worst-supported path). DFlash plumbing exists in our install (<code>dflash_worker.py</code>, <code>dflash_info.py</code>, model <code>dflash.py</code>, <code>--speculative-dflash-block-size</code>, <code>--speculative-dflash-draft-window-size</code>) so it would load, but a GGUF draft against a CT/fp8 target is an untrodden two-format-dequant path with no evidence. Vocab/tokenizer match is unverified: EAGLE/DFlash drafts must share the target's vocab + tokenizer, and there is no recorded confirmation that <code>dflash-3.6</code> was trained on the v13 / gemma-4 tokenizer — the "3.6" label does not establish gemma-4 lineage.
+    </p>
+
+    <h4>Concrete config / values</h4>
+    <p>
+      None to deploy. Leave speculative decoding OFF (SGLang default); do not pass <code>--speculative-algorithm</code> / <code>--speculative-dflash-*</code>.
+    </p>
+    <p>Revisit ONLY if a future low-concurrency, decode-bound mode appears, under ALL of these gates:</p>
+    <ol>
+      <li>#40624-class hybrid-attention &times; spec-decode prefix-cache regression confirmed FIXED on the SGLang DFlash path (measure <code>#cached-token</code> with spec on).</li>
+      <li>Draft tokenizer / vocab proven identical to v13's.</li>
+      <li>A native (non-GGUF) draft, OR proof SGLang accepts a GGUF draft against a CT/fp8 target without cache/correctness penalty.</li>
+      <li>Measured acceptance length &gt; ~2 at our concurrency.</li>
+    </ol>
+
+    <h4>Risks &amp; unknowns</h4>
+    <ul>
+      <li>The 0% figure is a vLLM observation; the SGLang DFlash equivalent is untested (but points the same way).</li>
+      <li>Draft&harr;target compatibility is entirely unverified.</li>
+      <li>Even a "working" DFlash must BEAT the prefix-cache reuse it disables — an unlikely net win for a prefill-heavy job.</li>
+    </ul>
+
+    <h4>What to measure (only if revisited)</h4>
+    <ul>
+      <li><code>#cached-token</code> / <code>#new-token</code> with spec on vs off.</li>
+      <li>Mean accepted draft length at real concurrency (&le;1.x &rArr; no benefit).</li>
+      <li>End-to-end s/iter spec on vs off (expect regression while batch-saturated).</li>
+    </ul>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ================= TOPIC 3 ================= -->
+  <h2>Topic 3 — Config Tuning for Our Use-Case</h2>
+
+  <div class="callout callout-green">
+    <span class="callout-title">Green — actionable</span>
+    Size everything around ONE invariant: keep total concurrent sub-call KV demand (<code>slots * subcall_context_limit</code>) at roughly HALF the pool so RadixAttention never evicts the orchestrator transcript prefix.
+  </div>
+
+  <div class="topic">
+    <h4>Recommendation</h4>
+    <p>
+      Size everything around one invariant — keep total concurrent sub-call KV demand (<code>slots * subcall_context_limit</code>) at roughly HALF the pool so RadixAttention never evicts the orchestrator transcript prefix. Start from <code>mem-fraction-static 0.80</code>, <code>cuda-graph-max-bs 24</code>, <code>context-length 32768</code>, and a deliberately MODERATE <code>subcall_context_limit</code> (~8k) with concurrency 2, then widen only while prefix reuse stays &ge;90%.
+    </p>
+
+    <h4>Why (grounded in our findings)</h4>
+    <p>
+      The recorded failure (project_sglang-radixattention-pool-tuning, ADR-0016 GATE&nbsp;#2): <code>subcall_context_limit=24000</code>, <code>slots=4</code> (96k demand vs ~98k pool) &rarr; pool 0.40 full, <code>#cached-token~0</code>, ~365s/iter, multihop TIMEOUT — RadixAttention LRU-evicted the orchestrator's growing transcript prefix every iteration, forcing a full re-prefill. Dropping to <code>8000/slots=2</code> (16k demand, pool 0.04 full) gave <code>#new-token:153 / #cached-token:3835 = ~96% reuse</code>, ~100s/iter — 3.5x faster. This is the single most important tuning law.
+    </p>
+    <p>
+      It is distinct from the llama.cpp <code>--kv-unified</code> 500-error problem (ADR-0012) — SGLang evicts gracefully (no 500s) but silently tanks cache + latency. <code>dynamic_kv_pool=True</code> (ADR-0016) removes the ADR-0012 per-slot budget DIVISION (no 500s) — but you STILL want a moderate <code>subcall_context_limit</code> for CACHE LOCALITY (safety and locality are different goals).
+    </p>
+    <p>
+      <code>mem-fraction</code> interacts with cuda-graph capture (project_int4-quant-v13-w4a16): the real lever is the <code>context-length</code> cap. WITHOUT it, the default ~98k pool grows greedily and starves capture (the old bisection: bs=24 OOMs at 0.78, captures at 0.75). WITH <code>context-length 32768</code> the SWA pool is bounded to ~96k tokens (~4&nbsp;GB free), so <code>0.80 + cuda-graph-max-bs 24</code> captures the full bs[1..24] set in ~132&nbsp;s for only 0.05&nbsp;GB — validated live 2026-06-25. Do NOT use <code>--disable-cuda-graph</code> (keeps only piecewise graphs, kills the decode graph). Keep the hybrid SWA pool — <code>--disable-hybrid-swa-memory</code> is a gemma-4 dead-end (sliding layers 4x wider than full; a uniform pool can't hold both widths; <code>store_cache</code> aborts capture with a shape mismatch — NOT OOM).
+    </p>
+    <p>
+      <strong>Layout / seam interactions.</strong> ADR-0017 (data-first <code>{label}:\n{data}\n\n{instruction}</code>) is what MAKES the half-pool reuse achievable — stable context leads, identical chunks match at token 0; instruction-first broke token-0 matching (the ~6.4x re-prefill). ADR-0018 (query-independent extraction MAP) lifted multihop 1/5&rarr;5/5 but ENLARGES partials on dense contexts (more reduce tokens, possibly more reduce levels) &rarr; higher reduce-step KV pressure &rarr; another reason to stay conservative.
+    </p>
+
+    <h4>Concrete config / values</h4>
+    <p>Server (int4-ct):</p>
+    <pre><code><span class="cfg-label">--quantization</span> compressed-tensors
+<span class="cfg-label">--kv-cache-dtype</span> fp8_e4m3
+<span class="cfg-label">--attention-backend</span> triton
+<span class="cfg-label">--mem-fraction-static</span> 0.80
+<span class="cfg-label">--cuda-graph-max-bs</span> 24
+<span class="cfg-label">--context-length</span> 32768
+<span class="cfg-label">--tp</span> 1
+<span class="cfg-label">--enable-metrics</span></code></pre>
+    <p>Client / harness:</p>
+    <pre><code>slots (MAPREDUCE_CONCURRENCY) = 2
+dynamic_kv_pool              = True
+subcall_base_url            = None        <span class="cfg-label"># one endpoint</span>
+subcall_context_limit       ~ 8000        <span class="cfg-label"># slots*limit = 16k vs ~98k pool</span>
+                                          <span class="cfg-label"># -> ~0.04-0.16 full, room for the</span>
+                                          <span class="cfg-label"># resident ~20-40k orchestrator prefix</span>
+recommended_chunk_chars     ~ 30% of per-call budget  <span class="cfg-label"># ADR-0010</span></code></pre>
+    <p>Tuning order (one variable at a time, watch <code>#cached-token</code>):</p>
+    <ol>
+      <li>Land data-first layout (ADR-0017) + extraction MAP (ADR-0018) FIRST — without them no config makes the cache hit.</li>
+      <li>Fix <code>mem-fraction-static 0.80</code> + <code>cuda-graph-max-bs 24</code> + <code>context-length 32768</code>; confirm clean capture (full bs[1..24] set, ~0.05&nbsp;GB).</li>
+      <li>Set <code>slots=2</code>, <code>subcall_context_limit=8000</code>; confirm <code>#cached-token &gt;&gt; #new-token</code> (&ge;90%) and ~100s/iter.</li>
+      <li>ONLY THEN widen for throughput, one step at a time, holding <code>slots * subcall_context_limit &le; 0.5 * max_total_num_tokens</code>; back off the moment reuse drops or s/iter jumps (the eviction knee).</li>
+      <li><code>context-length 32768</code> fits the per-sub-call need; raise only if a single (now-fatter) REDUCE needs it — it costs pool, so re-check the budget.</li>
+    </ol>
+
+    <h4>Risks &amp; unknowns</h4>
+    <ul>
+      <li>Tuning fixed LATENCY 3.5x but NOT accuracy by itself — config is necessary, not sufficient.</li>
+      <li>ADR-0018 larger partials may push reduce KV past the conservative budget on dense contexts (watch reduce-level count; one-line revertible <code>_SEAM_EXTRACTION_MAP=False</code>).</li>
+      <li>The half-pool rule is anchored on a 2–5 task sample; the "&le;0.5&times;pool" coefficient may need re-derivation with bf16 KV (smaller pool).</li>
+      <li>If the root orchestrator prefix alone exceeds its reserve on very long solves, transcript compaction is a separate still-open lever (ADR-0012 §open).</li>
+    </ul>
+
+    <h4>What to measure</h4>
+    <ul>
+      <li>Per-Prefill-batch <code>#cached-token</code> vs <code>#new-token</code> (target &ge;90%; ignore the <code>cache_hit_rate</code> gauge).</li>
+      <li>Pool occupancy fraction (keep well under 0.5 under concurrency).</li>
+      <li>s/iter on multihop (~100s target) and task completion / timeout rate (<code>multihop_053</code> was the persistent timeout).</li>
+      <li>cuda-graph capture success at the chosen mem-fraction / bs.</li>
+    </ul>
+  </div>
+
+  <hr class="divider">
+
+  <h2>Cross-Cutting Priorities</h2>
+  <ol class="priorities">
+    <li><strong>Run the GATE&nbsp;#2 accuracy A/B before flipping any default</strong> (ADR-0016 stays PROPOSED). The stack's gate is accuracy (~0 correct on small samples). Disentangle the three suspects — (a) fp8 KV precision, (b) chat-template / <code>reasoning_parser=gemma4</code> thinking-mode, (c) small-sample variance — against the llama <code>q8_0</code> baseline, more tasks, memory on.</li>
+    <li><strong>Isolate KV dtype on int4-ct weights:</strong> <code>fp8_e4m3</code> vs bf16 KV. int4-ct weights (~8.5&nbsp;GB) decouple KV dtype from pool pressure for the first time — the cleanest, cheapest experiment to kill or confirm the biggest accuracy suspect.</li>
+    <li><strong>Lock data-first layout (ADR-0017) + extraction MAP (ADR-0018) as prerequisites,</strong> then tune to the half-pool rule. Together these produce the ~96% reuse / 3.5x-faster / 5-of-5-multihop regime; tuning on an instruction-first layout or a per-query MAP is wasted.</li>
+    <li><strong>Speculative decoding stays OFF — close DFlash as NO-GO.</strong> It disables our dominant lever (prefix reuse, #40624) and targets a regime (low-batch decode) we never enter.</li>
+    <li><strong>TurboQuant stays iceboxed;</strong> pre-quantized fp8/AWQ-on-disk is the only KV-adjacent follow-up worth carrying (faster start + more headroom, orthogonal to dtype). Revisit 4-bit KV only if a future roadmap is genuinely capacity-bound.</li>
+  </ol>
+
+  <footer>
+    <h2>References</h2>
+    <p>
+      <strong>ADRs:</strong> 0010 (auto-chunk map-reduce), 0012 (pool-aware subcall budget under <code>kv-unified</code>), 0015 (inference-engine eval vLLM/SGLang), 0016 (SGLang as served solver), 0017 (data-first sub-call layout), 0018 (extraction-map for multihop chaining).
+    </p>
+    <p>
+      <strong>Memory notes:</strong> <code>project_sglang-v13-serving-gate1</code>, <code>project_int4-quant-v13-w4a16</code>, <code>project_sglang-radixattention-pool-tuning</code>, <code>project_data-first-subcall-layout</code>, <code>project_turboquant-iceboxed</code>, <code>project_orchestrator-transcript-overflow-followup</code>.
+    </p>
+    <p>
+      <strong>GitHub issues cited:</strong> #40624, #33524, #14814, #9233.
+    </p>
+    <p class="kicker">Advisory document — ADR-0016 remains PROPOSED. Generated 2026-06-24 for the RLM solver on RTX 5090 / SM_120 / WSL2.</p>
+  </footer>
+
+</main>
+</body>
+</html>

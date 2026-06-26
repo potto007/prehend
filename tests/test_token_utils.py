@@ -94,6 +94,16 @@ class TestCountTokensConservative:
         assert CONSERVATIVE_CHARS_PER_TOKEN < 4.0
         assert CONSERVATIVE_CHARS_PER_TOKEN > 0
 
+    def test_conservative_constant_not_above_real_gemma_density(self):
+        # The constant converts a CHAR budget into a token estimate; if it claims
+        # MORE chars per token than the real served tokenizer delivers, it
+        # UNDERCOUNTS and an oversized prompt slips past the guard to a 400.
+        # Measured gemma-4 density on the rlm-trainer multihop KB contexts is
+        # 2.069-2.073 chars/token; the conservative constant must sit at/below
+        # that floor so the estimate is an over-count (the safe direction).
+        MEASURED_GEMMA_MIN_CHARS_PER_TOKEN = 2.069
+        assert CONSERVATIVE_CHARS_PER_TOKEN <= MEASURED_GEMMA_MIN_CHARS_PER_TOKEN
+
     def test_empty_messages_zero(self):
         assert count_tokens([], "gemma-4-12b-it-sft-kb-v13-sft") == 0
 

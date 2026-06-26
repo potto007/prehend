@@ -137,7 +137,7 @@ class TraceDistiller:
                 polarity = "positive"
 
         return {
-            "id": _entry_id(question),
+            "id": _entry_id(question, "failure" if failed else "success"),
             "polarity": polarity,
             "key_insight": key_insight,
             "findings": findings,
@@ -173,8 +173,15 @@ class TraceDistiller:
         return ""
 
 
-def _entry_id(question: str) -> str:
-    digest = hashlib.sha1(question.encode("utf-8")).hexdigest()[:12]
+def _entry_id(question: str, derived_from: str = "success") -> str:
+    # Key on (question, provenance) so a failure guard and a success recipe for
+    # the SAME question get distinct ids and COEXIST (ADR-0011 amendment). With a
+    # question-only id they collided and the harness "success shadows failure"
+    # rule dropped every negative, so the contrastive channel never fired on
+    # context-varying task sets (plain multihop: 60 tasks, only 5 questions).
+    # The NUL separator can't occur in normal question text, so distinct
+    # (question, derived_from) pairs never alias.
+    digest = hashlib.sha1(f"{question}\x00{derived_from}".encode("utf-8")).hexdigest()[:12]
     return f"exp_{digest}"
 
 

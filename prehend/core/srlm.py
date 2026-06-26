@@ -134,12 +134,13 @@ class SRLM(RLM):
             context = prompt.get("context", str(prompt))
             root_prompt = prompt.get("query", "")
 
-        backend_name = (
-            self.other_backends[0] if self.other_backends else self.backend
-        )
-        backend_kw = (
-            self.other_backend_kwargs[0] if self.other_backend_kwargs else self.backend_kwargs
-        ) or {}
+        # Direct mode is a top-level solve, so it uses the ORCHESTRATOR backend
+        # (self.backend), not the sub-call backend (other_backends[0]). Under the
+        # dual-instance weight-shared solver (ADR-0013) those are different
+        # servers: the orchestrator runs CoT-on, the sub-call worker CoT-off, so
+        # a direct answer must come from the orchestrator.
+        backend_name = self.backend
+        backend_kw = self.backend_kwargs or {}
         client = get_client(backend_name, backend_kw)
         messages = _build_direct_messages(context, root_prompt)
 

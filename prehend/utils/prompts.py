@@ -18,7 +18,9 @@ The REPL environment is initialized with:
 8. An `answer` dict (`{{"content": "", "ready": False}}`) that you use to submit your final answer. See "Submitting your final answer" below.
 {custom_tools_section}
 
-**CRITICAL - sub-calls do NOT see your `context`, so hand it over with `context=`:** every sub-call (`llm_query`, `llm_query_batched`, `rlm_query`, `rlm_query_batched`) runs in a SEPARATE environment with NO access to your `context` variable. The correct, preferred way to give a sub-call the text is the `context=` argument: `llm_query("Which items does Dave own?", context=context)` (or `rlm_query(..., context=context)`). The harness then chunks `context`, queries each chunk in parallel, and combines the results FOR you -- you do NOT slice, loop, or map-reduce by hand. A bare instruction with no data (e.g. `rlm_query("find what Dave owns")`) gives the child nothing and it answers "no information found" -- always supply the data via `context=`. (Advanced manual fallback, only if you need full control: instead of `context=` you may paste a SLICE into the prompt string, e.g. `rlm_query(f"Which items does Dave own? Text:\\n{{context[:80000]}}")`, keeping each slice under ~{subcall_char_budget} characters and chunking larger context yourself -- but `context=` is preferred and handles this automatically.)
+**CRITICAL - sub-calls do NOT see your `context`, so hand it over with `context=`:** every sub-call (`llm_query`, `llm_query_batched`, `rlm_query`, `rlm_query_batched`) runs in a SEPARATE environment with NO access to your `context` variable. The correct, preferred way to give a sub-call the text is the `context=` argument: `llm_query("Which items does Dave own?", context=context)` (or `rlm_query(..., context=context)`). The harness then chunks `context`, queries each chunk in parallel, and combines the results FOR you -- you do NOT slice, loop, or map-reduce by hand. A bare instruction with no data (e.g. `rlm_query("find what Dave owns")`) gives the child nothing and it answers "no information found" -- always supply the data via `context=`. (Advanced manual fallback, only if you need full control: instead of `context=` you may paste a SLICE into the prompt string -- but put the DATA FIRST and your question LAST so the solver's prefix cache can reuse the slice across calls, e.g. `rlm_query(f"Text:\\n{{context[:80000]}}\\n\\nWhich items does Dave own?")`, keeping each slice under ~{subcall_char_budget} characters and chunking larger context yourself -- but `context=` is preferred and handles this automatically.)
+
+**Cache-friendly sub-call layout:** when you write a sub-call prompt by hand, ALWAYS put the large context/chunk text FIRST and your instruction/question LAST. The solver reuses identical leading text across calls (prefix caching), so leading with the data lets it skip re-reading the same chunk on every query; leading with your (varying) question forces it to re-read the whole chunk each time.
 
 **When to use `llm_query` vs `rlm_query`:**
 - Use `llm_query` for simple, one-shot tasks: extracting info from a chunk, summarizing text, answering a factual question, classifying content. These are fast single LLM calls.
@@ -45,7 +47,8 @@ You can use the REPL environment to help you understand your context, especially
 When you want to execute Python code in the REPL environment, wrap it in triple backticks with 'repl' language identifier. For example, say we want our recursive model to search for the magic number in the context (assuming the context is a string), and the context is very long, so we want to chunk it:
 ```repl
 chunk = context[:10000]
-answer = llm_query(f"What is the magic number in the context? Here is the chunk: {{chunk}}")
+# Data first, question last: the chunk leads so the solver can cache+reuse it across queries.
+answer = llm_query(f"Here is a chunk of the context:\n{{chunk}}\n\nWhat is the magic number in it?")
 print(answer)
 ```
 
@@ -54,10 +57,11 @@ As an example, suppose you're trying to answer a question about a book. You can 
 query = "In Harry Potter and the Sorcerer's Stone, did Gryffindor win the House Cup because they led?"
 for i, section in enumerate(context):
     if i == len(context) - 1:
-        buffer = llm_query(f"You are on the last section of the book. So far you know that: {{buffers}}. Gather from this last section to answer {{query}}. Here is the section: {{section}}")
+        # Section (stable data) first; the varying buffers/query trail it so the cache reuses the section.
+        buffer = llm_query(f"Here is the last section of the book:\n{{section}}\n\nYou are on the last section. So far you know that: {{buffers}}. Gather from this section to answer {{query}}.")
         print(f"Based on reading iteratively through the book, the answer is: {{buffer}}")
     else:
-        buffer = llm_query(f"You are iteratively looking through a book, and are on section {{i}} of {{len(context)}}. Gather information to help answer {{query}}. Here is the section: {{section}}")
+        buffer = llm_query(f"Here is section {{i}} of {{len(context)}}:\n{{section}}\n\nGather information to help answer {{query}}.")
         print(f"After section {{i}} of {{len(context)}}, you have tracked: {{buffer}}")
 ```
 
@@ -75,7 +79,7 @@ for i in range(10):
     chunks.append(chunk_str)
 
 # Use batched query for concurrent processing - much faster than sequential calls!
-prompts = [f"Try to answer the following query: {{query}}. Here are the documents:\n{{chunk}}. Only answer if you are confident in your answer based on the evidence." for chunk in chunks]
+prompts = [f"Here are some documents:\n{{chunk}}\n\nTry to answer the following query: {{query}}. Only answer if you are confident in your answer based on the evidence." for chunk in chunks]
 answers = llm_query_batched(prompts)
 for i, answer in enumerate(answers):
     print(f"I got the answer from chunk {{i}}: {{answer}}")
@@ -85,7 +89,7 @@ summary = llm_query(f"Aggregating all the answers per chunk, answer the original
 For subtasks that require deeper reasoning (e.g. solving a complex sub-problem), use `rlm_query` instead. The child gets its own REPL to iterate; you can then use the result in parent logic:
 ```repl
 # Child RLM solves the sub-problem in its own REPL; we use the result in code
-trend = rlm_query(f"Analyze this dataset and conclude with one word: up, down, or stable: {{data}}")
+trend = rlm_query(f"Here is a dataset:\n{{data}}\n\nAnalyze it and conclude with one word: up, down, or stable.")
 if "up" in trend.lower():
     recommendation = "Consider increasing exposure."
 elif "down" in trend.lower():

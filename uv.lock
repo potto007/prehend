@@ -1683,6 +1683,9 @@ ipython = [
     { name = "ipython", version = "9.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "jupyter-client" },
 ]
+metrics = [
+    { name = "prometheus-client" },
+]
 modal = [
     { name = "dill" },
     { name = "modal" },
@@ -1722,11 +1725,12 @@ requires-dist = [
     { name = "openai", specifier = ">=2.14.0" },
     { name = "portkey-ai", specifier = ">=2.1.0" },
     { name = "prime-sandboxes", marker = "extra == 'prime'", specifier = ">=0.2.0" },
+    { name = "prometheus-client", marker = "extra == 'metrics'", specifier = ">=0.20.0" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "rich", specifier = ">=13.0.0" },
 ]
-provides-extras = ["modal", "e2b", "daytona", "prime", "ipython"]
+provides-extras = ["metrics", "modal", "e2b", "daytona", "prime", "ipython"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1753,6 +1757,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/59/55/e6c855074af9ef027f3601396d4e5e0b464f26f724c074253dd0dd2f47b7/prime_sandboxes-0.2.9.tar.gz", hash = "sha256:af4ad06d205a95f4c54778ecac8492f3f382c850528072df79252e7fd0f3fa08", size = 45538, upload-time = "2026-01-07T20:24:15.352Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/88/ae/5d38212ff0cbad2c468e9b5cf1e3235af04d123b55c4adaa8812abdeabbb/prime_sandboxes-0.2.9-py3-none-any.whl", hash = "sha256:dab4dd9c1f4f633386593cfb08f7a3dacb2de4eb6e75f4a2ec7f5f1c6ea2207b", size = 18824, upload-time = "2026-01-07T20:24:14.133Z" },
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.25.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/fb/d9aa83ffe43ce1f19e557c0971d04b90561b0cfd50762aafb01968285553/prometheus_client-0.25.0.tar.gz", hash = "sha256:5e373b75c31afb3c86f1a52fa1ad470c9aace18082d39ec0d2f918d11cc9ba28", size = 86035, upload-time = "2026-04-09T19:53:42.359Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/9b/d4b1e644385499c8346fa9b622a3f030dce14cd6ef8a1871c221a17a67e7/prometheus_client-0.25.0-py3-none-any.whl", hash = "sha256:d5aec89e349a6ec230805d0df882f3807f74fd6c1a2fa86864e3c2279059fed1", size = 64154, upload-time = "2026-04-09T19:53:41.324Z" },
 ]
 
 [[package]]

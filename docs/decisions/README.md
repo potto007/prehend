@@ -25,5 +25,15 @@ lives in [rlm-trainer `docs/decisions/README.md`](https://github.com/ClearBridge
 | [0010](0010-auto-chunk-enforcement-for-oversized-subcalls.md) | Auto-chunk enforcement for oversized sub-calls (`context=` map-reduce) | accepted |
 | [0011](0011-contrastive-failure-memory-channel.md) | Contrastive failure memory channel (negative guard rules from wrong solves) | accepted |
 | [0012](0012-pool-aware-subcall-budget-under-kv-unified.md) | Pool-aware sub-call budget: divide the shared kv-unified pool across concurrent sub-calls | accepted |
+| [0013](0013-dual-instance-weight-shared-solver.md) | Dual-instance weight-shared solver: split orchestrator and sub-calls onto two processes sharing one weights copy | superseded by [0014](0014-single-process-dual-context-solver.md) |
+| [0014](0014-single-process-dual-context-solver.md) | Single-process dual-context solver: one `llama_model` backing two `llama_context` (private KV each) | accepted |
+| [0015](0015-inference-engine-evaluation-vllm-sglang.md) | Inference-engine evaluation: spike vLLM and SGLang as single-engine replacements for the dual-context fork | proposed |
+| [0016](0016-sglang-as-served-solver.md) | SGLang as the served solver: retire the dual-context llama.cpp fork (GATE #1 pass; GATE #2 accuracy A/B pending) | proposed |
+| [0017](0017-data-first-subcall-layout.md) | Data-first sub-call layout (context before instruction) to fix prefix misalignment / re-prefill | accepted |
+| [0018](0018-extraction-map-for-multihop-chaining.md) | Query-independent extraction MAP for multihop chaining | accepted |
+| [0019](0019-fp8-e4m3-kv-cache-for-gemma4-solver.md) | fp8_e4m3 (not fp8_e5m2) for the gemma4 v13 KV cache | accepted |
+| [0020](0020-entry-id-includes-provenance.md) | Experience id keys on (question, provenance) so failure guards and success recipes coexist (amends 0011) | accepted |
+| [0021](0021-vllm-as-served-solver.md) | vLLM 0.23.0 as the served solver for v13 (TRITON_ATTN, fp8_e4m3 KV, max-model-len 65536); supersedes 0016 | accepted |
+| [0022](0022-cold-baseline-via-frozen-retrieval-and-persistent-bank.md) | Cold baseline = frozen retrieval (not an empty bank); the memory bank is persistent and versioned | accepted |
 
 `0000-template.md` is the MADR template for new records.

@@ -17,7 +17,8 @@ differently-worded question retrieved the original experience.
 
 Prereqs:
   chat:  ~/src/local-ai/scripts/llama-server.sh load gemma-4-12b-it-sft-kb-v13-sft
-  embed: llama-server --embedding -m <bge-m3.gguf> --pooling cls --port 8081
+  embed: llama-server --embedding -m <bge-m3.gguf> --pooling cls --port 8084
+         (NOT :8081 - that port is the dual-context sub-call worker, ADR-0014)
 """
 from __future__ import annotations
 
@@ -40,7 +41,7 @@ load_dotenv()
 
 DEFAULT_CHAT_BASE_URL = "http://localhost:8080/v1"
 DEFAULT_CHAT_MODEL = "gemma-4-12b-it-sft-kb-v13-sft"
-DEFAULT_EMBED_BASE_URL = "http://localhost:8081/v1"
+DEFAULT_EMBED_BASE_URL = "http://localhost:8084/v1"
 DEFAULT_EMBED_MODEL = "bge-m3"
 DEFAULT_BANK_DIR = "/tmp/prehend_tier2_bank"
 

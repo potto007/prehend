@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-prehend (formerly mnemex, originally lm-repl; import path `prehend`, repo `potto007/prehend`, on-disk dir `/home/potto/src/prehend`) is a language-model harness that learns. Context is offloaded into a variable inside a REPL environment, and the model writes programs that slice, search, and recursively query that context instead of attending over it directly; an experience-memory layer (`prehend/memory/`) distills and retrieves past solves so each run improves on the last. See ADR-0007 for the rename to prehend, ADR-0006 for the prior mnemex rename, and ADR-0005 for the memory layer.
+prehend (originally lm-repl; import path `prehend`, repo `potto007/prehend`, on-disk dir `~/src/prehend`) is a language-model harness that learns. Context is offloaded into a variable inside a REPL environment, and the model writes programs that slice, search, and recursively query that context instead of attending over it directly; an experience-memory layer (`prehend/memory/`) distills and retrieves past solves so each run improves on the last. See ADR-0007 for the rename to prehend and ADR-0005 for the memory layer.
 
 This venv uses `uv` (there is NO `pip` binary in `.venv/bin`; use `~/.local/bin/uv`).
 
@@ -13,6 +13,25 @@ This venv uses `uv` (there is NO `pip` binary in `.venv/bin`; use `~/.local/bin/
 **IMPORTANT**: NEVER use the "em dash". If a dash is appropriate for a situation, use the regular dash.
 
 **Status updates**: Only state facts that tool output confirmed in this session. Do not infer file properties (ignored, tracked, permissions), build outcomes, or side effects you did not directly observe.
+
+## CRITICAL: inference server logging (local-ai promtail -> Loki -> Grafana)
+
+The monitoring rail in **local-ai** runs promtail, which tails a FIXED set of files and ships them to Loki for the Grafana "logs" panels and the `SglangSolverLogsStale` alert. An inference server whose output goes anywhere else is invisible to the dashboard. This is the recurring "no logs on the dash" failure.
+
+**MANDATORY**: whenever you start an inference server ad-hoc, OR write any ad-hoc / benchmark / test / one-off script that starts an inference server as one of its steps (e.g. spinning up the solver/orchestrator the harness drives), that server's stdout AND stderr MUST land in the canonical log for its type:
+
+| Inference server | Canonical log (promtail tails this) |
+| --- | --- |
+| SGLang (`python -m sglang.launch_server ...`) | `/tmp/sglang-server.log` |
+| llama.cpp (`llama-server` / dual-context server) | `/tmp/llama-server.log` |
+
+Satisfy it ONE of these ways:
+- Preferred: launch via `~/src/local-ai/scripts/sglang-launch.sh ARGS...`, a drop-in for `python -m sglang.launch_server ARGS...` that tees stdout+stderr to `/tmp/sglang-server.log` no matter what else you redirect.
+- Or tee/append yourself: `<launch> 2>&1 | tee -a /tmp/sglang-server.log` (or `>> /tmp/sglang-server.log 2>&1`).
+
+**MUST NOT** point an inference server's output at ONLY a private, per-run, or scratchpad file (e.g. `> /tmp/sglang-bench.log`, `> .../scratchpad/run.log`). promtail does not tail those, so the logs panel goes dark and the stale-logs alert fires. A per-run file is fine ONLY in addition to the canonical log (the wrapper tees to both).
+
+Source of truth lives in local-ai: `monitoring/promtail/promtail.yml` (tailed paths), `scripts/sglang-launch.sh` (the wrapper).
 
 ## llama-server (the harness's served solver model): diagnosing endpoint timeouts
 
@@ -36,15 +55,6 @@ Ops: kill the server by explicit PID (NEVER `pkill -f llama-server` - self-match
 1. **NEVER save working files, text/mds and tests to the root folder**
 2. ALWAYS organize files in appropriate subdirectories
 3. **USE CLAUDE CODE'S TASK TOOL** for spawning agents concurrently, not just MCP
-
-## Plan Mode
-
-- Make the plan extremely concise. Sacrifice grammar for the sake of concision.
-- At the end of each plan, give me a list of unresolved questions to answer, if any.
-
-## Backlog
-
-Canonical issue tracker: **GitHub Issues & Milestones** at `ClearBridgeRIP/rlm-trainer`. After completing work, remove any `status:not-started` / `status:partial` labels from relevent issues; close relevant issues with `gh issue close <id> --comment "..."` referencing the commit.
 
 ## Git interactions
 

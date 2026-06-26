@@ -28,8 +28,26 @@ class Defaults:
     max_iterations: int = 10
     max_depth: int = 2
     max_errors: int = 3
-    max_retries: int = 0
+    # >0 so the OpenAI SDK retries openai.APIConnectionError on a FRESH connection.
+    # sglang's uvicorn closes idle keepalives after 5s; the map-reduce sub-call
+    # batch path (AsyncOpenAI pool + asyncio.run-per-batch loop teardown, conc 16)
+    # churns connections, so reuse races surfaced as un-retried "Error: Connection
+    # error." (5-63/task) that map_reduce dropped -> wrong answers. A/B at conc 16:
+    # 0 retries -> 5.6% conn errors; 2 -> 0%. Connection errors fail fast, so the
+    # retry cost is ~0; the run deadline still bounds total wall-clock.
+    max_retries: int = 2
     stream: bool = False
+    # The RLM solve path (orchestrator, recursive RLMs, and map-reduce sub-calls)
+    # runs deterministic: temperature 0.0 on every request. Rides in
+    # default_extra_body, the same seam SRLM.candidate_temperature uses, which the
+    # openai client merges into the request body. (The distiller samples at 1.0 -
+    # that lives in the memory layer, MemoryConfig.reflect_temperature.)
+    rlm_temperature: float = 0.0
+    # Sampling seed sent on EVERY solve-path request (orchestrator, recursive
+    # RLMs, and map-reduce sub-calls) via default_extra_body, so a run is
+    # reproducible across the whole inference fan-out. None omits the field
+    # entirely (server-side default RNG), keeping prior behavior byte-identical.
+    seed: int | None = None
     subcall_enable_thinking: bool = False
     max_concurrent_subcalls: int = 4
     soft_timeout_pct: float | None = None
@@ -37,6 +55,12 @@ class Defaults:
     # Harness resolve it from runtime.ctx, then get_context_limit(model). A
     # Harness(subcall_context_limit=...) param overrides this field. Tier-A.
     subcall_context_limit: int | None = None
+    # Dynamic-KV-pool engine (sglang, ADR-0015): when True the per-slot sub-call
+    # division (per_call_subcall_budget) is bypassed - sglang's paged radix pool
+    # LRU-evicts under contention instead of 500ing the way llama.cpp --kv-unified
+    # did (ADR-0012), so each sub-call is budgeted against the FULL resolved pool
+    # (the per-request context-length cap). Default False keeps the llama.cpp path.
+    dynamic_kv_pool: bool = False
 
 
 VETTED = Defaults()
@@ -69,6 +93,9 @@ class MemoryConfig:
     # solve (the dominant memory overhead / GPU-contention source).
     reflect_enable_thinking: bool = False
     reflect_max_tokens: int | None = 512
+    # The distiller samples at temperature 1.0 (diverse lesson phrasings), distinct
+    # from the deterministic RLM solve path (Defaults.rlm_temperature=0.0).
+    reflect_temperature: float = 1.0
     # Defer distillation until Harness.record_outcome(correct), so a scoring
     # caller learns only from correct solves (avoids poisoning the bank with
     # give-up lessons distilled from failed tasks).
@@ -79,6 +106,19 @@ class MemoryConfig:
     # injected block so failure lessons cannot crowd out positive recipes.
     learn_from_failure: bool = False
     max_inject_negatives: int = 2
+    # Document-signature retrieval gate: when True, each experience is stamped
+    # with a ctx_sig tag from its source document and retrieval excludes entries
+    # whose document conflicts with the one being solved (the bare-question
+    # embedding alone cannot tell two same-question, different-document tasks
+    # apart). Default off keeps the embedding-only path byte-identical.
+    context_signature: bool = False
+    # Write-only cold baseline: when True, the memory layer distills and writes
+    # experiences as usual but injects NONE (retrieval short-circuits to empty),
+    # so every solve is a true first-exposure. The cold/warm eval sets this for
+    # its cold phase so a later cold task can't read memories written by earlier
+    # cold tasks, while the bank still ends populated for the warm phase. Default
+    # off keeps the standard read+write path.
+    freeze_retrieval: bool = False
     # Telemetry sink for retrieve/collect events. Pass
     # prehend.metrics.memory_observer() to emit the localai_prehend_memory_*
     # Prometheus series; None -> MemoryHarness installs a no-op NullObserver, so
@@ -124,19 +164,28 @@ def detect_runtime(
 
 
 class Harness:
-    """High-level entry point that assembles SRLM from vetted defaults + resolved runtime."""
+    """High-level entry point that assembles SRLM from vetted defaults + resolved runtime.
+
+    Sub-calls may target a separate weight-shared worker via ``subcall_base_url``
+    (a second llama-server sharing the master's weights over CUDA IPC but with
+    its own private KV pool); budget and fan-out then come from that worker's
+    runtime. ``subcall_base_url=None`` keeps the single-server path. See ADR-0013.
+    """
 
     def __init__(
         self,
         model: str,
         base_url: str,
         *,
+        subcall_base_url: str | None = None,
+        subcall_runtime: "Runtime | str | None" = None,
         api_key: str = "not-needed",
         timeout: float | None = None,
         runtime: "Runtime | str" = "auto",
         defaults: Defaults | None = None,
         system_addendum: str | None = None,
         subcall_context_limit: int | None = None,
+        dynamic_kv_pool: bool | None = None,
         subcall_verifier=None,
         answer_verifier=None,
         max_answer_retries: int | None = None,
@@ -155,6 +204,26 @@ class Harness:
         d = defaults or VETTED
         self.runtime = self._resolve_runtime(runtime, base_url, api_key, d)
 
+        # Dual-instance weight-shared solver (ADR-0013): sub-calls may target a
+        # separate llama-server worker that shares the master's weights via CUDA
+        # IPC but holds its OWN private KV pool. When subcall_base_url is set the
+        # sub-call backend routes there and its budget/fan-out come from the
+        # WORKER's runtime (its dedicated pool, its slots) - not the
+        # orchestrator's. When None, the worker collapses onto the orchestrator
+        # endpoint and behavior is byte-identical to the single-server path.
+        eff_subcall_url = subcall_base_url or base_url
+        if subcall_runtime is not None:
+            # An explicit worker runtime always wins (mirrors how `runtime` is
+            # honored for the orchestrator), whether or not a worker URL is set.
+            self.subcall_runtime = self._resolve_runtime(
+                subcall_runtime, eff_subcall_url, api_key, d
+            )
+        elif subcall_base_url is None:
+            self.subcall_runtime = self.runtime
+        else:
+            self.subcall_runtime = self._resolve_runtime("auto", eff_subcall_url, api_key, d)
+        self.subcall_base_url = eff_subcall_url
+
         # Resolve the effective sub-call context limit once (param > Defaults
         # field > runtime.ctx > get_context_limit(model)). Threaded into the
         # SRLM/RLM (guard + prompt) and the LocalREPL (llm_query guard). No env
@@ -171,17 +240,36 @@ class Harness:
         # server 500s every concurrent sub-call ("Context size has been
         # exceeded"). See token_utils.per_call_subcall_budget.
         shared_pool = resolve_subcall_limit(
-            model, explicit=explicit_limit, runtime_ctx=self.runtime.ctx
+            model, explicit=explicit_limit, runtime_ctx=self.subcall_runtime.ctx
         )
-        eff_subcall_limit = per_call_subcall_budget(shared_pool, self.runtime.slots)
+        # Dynamic-pool engines (sglang) skip the per-slot division: their paged KV
+        # pool evicts under contention rather than 500ing, so each sub-call gets
+        # the full resolved pool (the per-request context-length cap). The
+        # llama.cpp --kv-unified path keeps pool // slots (ADR-0012). Param >
+        # Defaults field.
+        use_dynamic = dynamic_kv_pool if dynamic_kv_pool is not None else d.dynamic_kv_pool
+        eff_subcall_limit = (
+            shared_pool
+            if use_dynamic
+            else per_call_subcall_budget(shared_pool, self.subcall_runtime.slots)
+        )
 
+        # Solve-path sampling body shared by the orchestrator and sub-call
+        # backends. seed rides here (same seam as temperature) so it lands on
+        # every chat/completion the OpenAI client makes; None leaves it out.
+        solve_extra_body = {"temperature": d.rlm_temperature}
+        if d.seed is not None:
+            solve_extra_body["seed"] = d.seed
         backend_kwargs = {
             "model_name": model, "base_url": base_url, "api_key": api_key,
             "max_retries": d.max_retries, "stream": d.stream,
+            "default_extra_body": dict(solve_extra_body),
         }
         subcall_kwargs = dict(backend_kwargs)
+        subcall_kwargs["base_url"] = eff_subcall_url
         subcall_kwargs["default_extra_body"] = {
-            "chat_template_kwargs": {"enable_thinking": d.subcall_enable_thinking}
+            **solve_extra_body,
+            "chat_template_kwargs": {"enable_thinking": d.subcall_enable_thinking},
         }
         srlm_kwargs = dict(
             backend="openai",
@@ -199,7 +287,7 @@ class Harness:
             max_depth=d.max_depth,
             max_errors=d.max_errors,
             max_timeout=timeout,
-            max_concurrent_subcalls=self.runtime.slots,
+            max_concurrent_subcalls=self.subcall_runtime.slots,
             soft_timeout_pct=d.soft_timeout_pct,
             logger=logger,
             verbose=False,
@@ -248,9 +336,12 @@ class Harness:
                 reflect_api_key=memory.reflect_api_key,
                 reflect_enable_thinking=memory.reflect_enable_thinking,
                 reflect_max_tokens=memory.reflect_max_tokens,
+                reflect_temperature=memory.reflect_temperature,
                 defer_collect=memory.defer_collect,
                 learn_from_failure=memory.learn_from_failure,
                 max_inject_negatives=memory.max_inject_negatives,
+                context_signature=memory.context_signature,
+                freeze_retrieval=memory.freeze_retrieval,
                 observer=memory.observer,
                 **tight,
             )

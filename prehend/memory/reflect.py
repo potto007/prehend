@@ -18,7 +18,7 @@ class OpenAIReflectFn:
         client: Any,
         model: str,
         *,
-        temperature: float = 0.3,
+        temperature: float = 1.0,
         system_prompt: str | None = None,
         extra_body: dict | None = None,
         max_tokens: int | None = None,

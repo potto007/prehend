@@ -23,21 +23,90 @@ from dataclasses import dataclass
 _GUARD_PREFIX = "Sub-call input guard rejected this call:"
 _BUDGET_MARKER = "retrieval budget exhausted"
 
+# Sentinel a MAP chunk returns when it holds nothing relevant to the request.
+# Dropped (like other control strings) BEFORE the reduce so the many no-signal
+# chunks of a sparse/multihop context cannot statistically outvote the one chunk
+# that holds the answer. Diagnosed on multihop_053: the answer-bearing partial
+# ("Alice owns a golden key.") was drowned by 15 verbose "no information about
+# Alice" partials and the reduce concluded "no mention of Alice" (reduce-loss).
+_NO_INFO_SENTINEL = "NO_RELEVANT_INFO"
+
+# Appended to the MAP (per-chunk) instruction only. Phrased to PRESERVE partial
+# hops: a chunk holding an intermediate fact (e.g. "Alice moved to Chicago",
+# which does not itself answer "what does Alice own?") must still report that
+# fact so the reduce can chain hops - only a chunk with NO related fact at all
+# emits the sentinel. Trails the instruction (data-first, ADR-0017) so it does
+# not disturb the cacheable chunk prefix.
+_MAP_SENTINEL_DIRECTIVE = (
+    "\n\nExtract, do not answer. Quote any fact the text above states about a "
+    "person, place, or thing named in the request - INCLUDING background facts "
+    "such as where a named person lives, moves to, or works, which may be needed "
+    "to reach the answer only indirectly through another fact. A fact that names "
+    "any entity from the request is relevant even if it does not mention what the "
+    f"request literally asks. Reply with exactly {_NO_INFO_SENTINEL} and nothing "
+    "else ONLY if the text states no such fact about any entity in the request."
+)
+
+# Query-INDEPENDENT extraction instruction for the MAP step in extraction_map
+# mode (multihop CHAINING fix). The legacy per-query map uses the user query as
+# the per-chunk instruction, so the model judges a background hop (e.g. "Alice
+# moved to Chicago", which does not itself answer "what does Alice own?") as
+# irrelevant and drops it - the Alice->Chicago->key chain is never connected
+# (diagnosed multihop_053; re-tuning _MAP_SENTINEL_DIRECTIVE failed twice).
+# Asking instead for EVERY fact about EVERY named entity removes the query as a
+# filter, so all hops survive to the global reduce, where the user query (the
+# reduce_prompt) does the actual chaining. Carries the sentinel clause itself so
+# entity-free filler chunks still drop out and cannot dilute the reduce. Trails
+# the chunk (data-first, ADR-0017) so the cacheable chunk prefix is undisturbed.
+_EXTRACTION_MAP_INSTRUCTION = (
+    "Extract, do not answer. List every fact the text above states about any "
+    "named person, place, organization, or thing - one fact per line, quoting "
+    "each name exactly. Include relationships (who lives or moves where, who owns "
+    "or has what, who works for or knows whom) and attributes, even ones that "
+    "seem like unimportant background; a later step needs them to connect facts "
+    "across the document. Do not summarize or judge relevance. Reply with exactly "
+    f"{_NO_INFO_SENTINEL} and nothing else ONLY if the text states no fact about "
+    "any named entity."
+)
+
+# Clean answer surfaced when EVERY chunk returned the sentinel (truly nothing
+# found anywhere), so the raw token never leaks to the caller.
+_NO_INFO_ANSWER = "No relevant information was found in the provided text."
+
 # Appended to the truncated join when the tree hits max_reduce_depth so the loss
 # is visible in the final reduce input and in logs.
 _TRUNCATE_NOTE = "\n\n[note: reduce truncated at max depth; some partial results omitted]"
 
 
 def _compose(instr: str, data: str, label: str = "Text") -> str:
-    """Frame an instruction and a data blob into a single sub-call prompt."""
-    return f"{instr}\n\n{label}:\n{data}"
+    """Frame an instruction and a data blob into a single sub-call prompt.
+
+    Data-first layout (ADR-0017): the large, stable data leads and the varying
+    instruction trails. The served solver's radix/prefix cache matches from
+    token 0, so leading with the chunk lets the SAME chunk be reused across
+    sub-calls (only the short trailing instruction re-prefills). The old
+    instruction-first layout diverged at token 0 and re-prefilled the whole
+    chunk every query (~6.4x re-prefill measured on the multihop bench).
+    """
+    return f"{label}:\n{data}\n\n{instr}"
 
 
 def _is_control(text: str) -> bool:
-    """True for a non-answer control string (guard rejection, error, budget msg)."""
+    """True for a non-answer control string (guard rejection, error, budget msg,
+    or the no-info sentinel) - dropped before the reduce so it cannot dilute it."""
     if not isinstance(text, str):
         return False
-    return text.startswith("Error:") or text.startswith(_GUARD_PREFIX)
+    stripped = text.strip()
+    return (
+        stripped.startswith("Error:")
+        or stripped.startswith(_GUARD_PREFIX)
+        or stripped.upper().startswith(_NO_INFO_SENTINEL)
+    )
+
+
+def _is_no_info(text: str) -> bool:
+    """True for the no-info sentinel specifically (a subset of _is_control)."""
+    return isinstance(text, str) and text.strip().upper().startswith(_NO_INFO_SENTINEL)
 
 
 @dataclass
@@ -90,6 +159,8 @@ def map_reduce(
     overlap_chars: int = 0,
     is_control: Callable[[str], bool] = _is_control,
     compose: Callable[[str, str, str], str] = _compose,
+    extraction_map: bool = False,
+    map_cache: dict | None = None,
 ) -> MapReduceResult:
     """Map ``prompt`` over chunks of ``context`` and tree-reduce the partials.
 
@@ -105,6 +176,20 @@ def map_reduce(
         max_reduce_depth: tree depth bound; the unconditional termination backstop.
         is_control: predicate marking a response as a control/error string to drop.
         compose: instruction+data framing.
+        extraction_map: if True, the MAP step uses a query-INDEPENDENT fact
+            extraction instruction instead of ``prompt`` (so cross-document hops
+            survive instead of being filtered as irrelevant to the query); the
+            query (``reduce_prompt``, defaulting to ``prompt``) then chains the
+            extracted facts at the REDUCE. The multihop CHAINING lever.
+        map_cache: optional caller-owned dict for memoizing the MAP partials
+            ACROSS calls. Used ONLY in ``extraction_map`` mode, where the MAP
+            output is query-INDEPENDENT (depends only on context + chunking), so a
+            re-issued ``llm_query(context=SAME_BIG)`` reuses the expensive MAP and
+            re-runs only the cheap query-driven REDUCE. This kills the orchestrator
+            re-scan (live evidence: ~8-9x re-prefill of a fixed context across
+            iterations). Ignored in legacy mode, where the MAP instruction IS the
+            query and caching across queries would be incorrect. Assumes a stable
+            ``compose`` for a given cache (true at the seam).
     """
     if reduce_prompt is None:
         reduce_prompt = prompt
@@ -136,15 +221,43 @@ def map_reduce(
                 real.append(r)
         return real
 
-    # 2. Map: run the instruction over each chunk in one batch.
-    map_raw = run_batch([compose(prompt, c, "Text") for c in chunks])
+    # 2. Map: run the instruction over each chunk in one batch. In extraction_map
+    #    mode the MAP is query-INDEPENDENT (extract every fact about every named
+    #    entity) so cross-document hops survive to the reduce; otherwise it is the
+    #    legacy per-query map. Either way the MAP carries the no-info sentinel
+    #    clause (the REDUCE prompt does not) so an entity-free chunk returns a
+    #    droppable sentinel instead of a verbose "no information" answer that would
+    #    dilute the reduce.
+    map_instr = _EXTRACTION_MAP_INSTRUCTION if extraction_map else prompt + _MAP_SENTINEL_DIRECTIVE
+    # Memoize the query-INDEPENDENT extraction MAP across calls (re-scan fix):
+    # the partials depend only on (context, chunk_chars, overlap_chars) in this
+    # mode, so a re-issued same-context query skips the MAP run_batch and re-runs
+    # only the REDUCE below. Cache the RAW responses and re-filter each time so the
+    # dropped/budget bookkeeping stays correct on a hit. Legacy mode never caches
+    # (its MAP instruction is the query). Disabled when map_cache is None.
+    cache_key = (
+        (chunk_chars, overlap_chars, context)
+        if (extraction_map and map_cache is not None)
+        else None
+    )
+    map_raw = map_cache.get(cache_key) if cache_key is not None else None
+    if map_raw is None:
+        map_raw = run_batch([compose(map_instr, c, "Text") for c in chunks])
+        if cache_key is not None:
+            map_cache[cache_key] = map_raw
     partials = _filter(map_raw)
 
-    # If every map partial was a control string, surface the first verbatim so the
-    # model sees the hint/error rather than an empty answer.
+    # If every map partial was a control string, surface a useful answer rather
+    # than an empty one. When they were all no-info sentinels (nothing relevant
+    # anywhere) return a clean readable message - never the raw token. Otherwise
+    # surface the first control string verbatim so the model sees the hint/error.
     if not partials:
+        if map_raw and all(_is_no_info(r) for r in map_raw):
+            answer = _NO_INFO_ANSWER
+        else:
+            answer = map_raw[0] if map_raw else ""
         return MapReduceResult(
-            answer=map_raw[0] if map_raw else "",
+            answer=answer,
             n_chunks=n_chunks,
             reduce_levels=0,
             truncated=False,

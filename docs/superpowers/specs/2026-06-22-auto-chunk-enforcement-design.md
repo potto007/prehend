@@ -373,7 +373,7 @@ Regression: full suite (`uv run pytest`) -> 706+ green, 9 skipped unchanged.
 
 - Server-free smoke: construct LocalREPL with a fake handler; assert oversized `context=`
   map-reduces (combined answer) without hitting the socket.
-- Timeout-tail subset (v13 :8080 ctx 98304, bge :8081, e4b :8083): run `multihop`
+- Timeout-tail subset (v13 :8080 ctx 98304, bge :8084, e4b :8083): run `multihop`
   `--max-tasks 3 --timeout 600 --subcall-context-limit 98304`. PASS = the heavy tasks
   (002/003/010) now COMPLETE under 600s; `grep -c 'exceeds the available context size'`
   stays flat (no new overflow).

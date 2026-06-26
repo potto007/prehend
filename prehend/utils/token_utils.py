@@ -18,9 +18,19 @@ CHARS_PER_TOKEN_ESTIMATE = 4
 # Real (non-OpenAI) models like gemma tokenize DENSER than tiktoken's cl100k for
 # structured/code text, so the cl100k fallback (and a 4.0 char/token average)
 # can UNDERESTIMATE. An undercount would let an oversized prompt slip past an
-# input-size guard. Using ~3.0 chars/token biases the fallback toward
-# OVER-counting (more tokens), which is the safe direction for a guard.
-CONSERVATIVE_CHARS_PER_TOKEN = 3.0
+# input-size guard.
+#
+# The estimate is tokens = chars / CONSERVATIVE_CHARS_PER_TOKEN, so to bias
+# toward OVER-counting (more tokens = the safe direction for a guard) this
+# constant must sit at or BELOW the real density. Measured gemma-4 density on
+# the rlm-trainer multihop KB contexts is ~2.07 chars/token (5 tasks, 2.069-
+# 2.073); the prior 3.0 UNDER-counted that dense text by ~45%, letting a chunk
+# the guard scored at <=20400 est-tokens reach ~29.5k REAL tokens - right at the
+# 32768-ctx served window, so any output reservation 400'd it (the 2026-06-24
+# GATE #2 oversized-chunk failure). 2.0 sits below the measured floor so the
+# estimate over-counts this text and a guard-passing prompt provably fits the
+# served window with output headroom.
+CONSERVATIVE_CHARS_PER_TOKEN = 2.0
 
 # Substrings that mark a model as clearly NOT OpenAI/tiktoken-compatible.
 # For these we prefer the conservative char-based estimate over cl100k, which

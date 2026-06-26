@@ -23,6 +23,7 @@ from typing import Any, Protocol
 from prehend.memory.bank import Bank
 from prehend.memory.embed import EmbeddingBackend
 from prehend.memory.inject import render_memory_block
+from prehend.memory.signature import context_signature
 from prehend.memory.retrieve import (
     DEFAULT_K_MAX,
     DEFAULT_MIN_COSINE,
@@ -104,6 +105,8 @@ class MemoryHarness:
         defer_collect: bool = False,
         learn_from_failure: bool = False,
         max_inject_negatives: int = 2,
+        context_signature: bool = False,
+        freeze_retrieval: bool = False,
         observer: MemoryObserver | None = None,
     ) -> None:
         self.solver = solver
@@ -113,6 +116,19 @@ class MemoryHarness:
         self.min_cosine = min_cosine
         self.distiller = distiller
         self.tagger = tagger or NullTagger()
+        # When True, stamp each experience with a ctx_sig tag derived from the
+        # solved document and pass it as a query tag, so the existing tag-gate
+        # excludes a different document's same-question experience (the bare
+        # question embeds at cosine ~= 1.0 regardless of document). Default off
+        # keeps the embedding-only path byte-identical for other consumers.
+        self.context_signature = context_signature
+        # Write-only cold baseline: when True, _retrieve short-circuits to empty so
+        # NO experience is injected (every solve is a true first-exposure), while
+        # _collect still writes distilled experiences to the bank. The cold/warm
+        # eval sets this for its cold phase so later cold tasks can't read memories
+        # written by earlier ones, yet the bank still ends populated for the warm
+        # phase. Default off keeps the standard read+write path.
+        self.freeze_retrieval = freeze_retrieval
         self.observer = observer or NullObserver()
         # Contrastive failure channel (ADR-0010): when True, collect_pending(False)
         # distills a WRONG solve into a negative guard-rule entry instead of
@@ -152,6 +168,12 @@ class MemoryHarness:
             query_tags = self.tagger.tag(question)
         except Exception:
             query_tags = {}
+        # Document-signature gate (opt-in): both _retrieve (query tag) and
+        # _collect (stamped onto the new entry) consume query_tags, so adding
+        # ctx_sig here both filters retrieval and records the experience's own
+        # document identity in one place.
+        if self.context_signature:
+            query_tags = {**query_tags, "ctx_sig": context_signature(context)}
         entries, scores, error, retrieve_seconds = self._retrieve(question, query_tags)
 
         # Polarity-aware cap: never let failure-derived guard rules crowd positive
@@ -222,6 +244,9 @@ class MemoryHarness:
         a real retrieval failure from a clean miss, and ``seconds`` is the
         embed+search wall time, both for the observer.
         """
+        if self.freeze_retrieval:
+            # Write-only cold baseline: skip retrieval entirely (clean miss).
+            return [], [], False, 0.0
         t0 = time.perf_counter()
         try:
             res = retrieve(
@@ -269,13 +294,18 @@ class MemoryHarness:
                 outcome = "written"
                 bank_size = len(existing) + 1
             elif prior.get("derived_from") == "failure" and entry.get("derived_from") != "failure":
-                # Success supersedes a failure guard rule for the same question.
+                # Defensive fallback only: since the ADR-0011 amendment, _entry_id
+                # keys on (question, derived_from), so a success and a failure for
+                # the same question get distinct ids and never collide here. Kept
+                # for legacy/question-only banks where they could still alias.
                 updated = [entry if e.get("id") == eid else e for e in existing]
                 self.bank.save(updated)  # same length -> not a shrink -> accepted
                 outcome = "superseded"
                 bank_size = len(updated)
             elif prior.get("derived_from") != "failure" and entry.get("derived_from") == "failure":
-                # A failure must never overwrite or shadow a known-good recipe.
+                # Defensive fallback only (see above): cross-provenance ids no
+                # longer collide, so a failure no longer shadows a known-good
+                # recipe by id - both coexist and injection balances them.
                 outcome = "superseded_skip"
             else:
                 outcome = "duplicate"  # same provenance, one experience per id

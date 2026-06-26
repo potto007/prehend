@@ -10,6 +10,21 @@ from prehend.utils.subcall_guard import (
 
 MODEL = "gemma-4-12b-it-sft-kb-v13-sft"
 
+# Empirically measured density of the served gemma-4 tokenizer on the rlm-trainer
+# multihop KB contexts (5 tasks, ~314k chars each): 2.069-2.073 chars/token. The
+# guard sizes chunks from CHARS, so its chars-per-token assumption MUST be at or
+# below this real density or it will undercount tokens and let a chunk that is
+# really >32768 tokens reach the 32768-ctx server (the 400 -> dropped-chunk ->
+# WRONG/timeout failure from the 2026-06-24 GATE #2 run).
+MEASURED_GEMMA_CHARS_PER_TOKEN = 2.069
+# Production served config: `--context-length 32768`, sub-call output uncapped.
+SERVED_CTX_TOKENS = 32768
+# A modest output reserve a guard-passing prompt must still leave free in the
+# served window (sub-call answers are short; this is deliberately generous).
+SUBCALL_OUTPUT_RESERVE_TOKENS = 4096
+# The production per-call sub-call budget the bench/harness used (subcall_limit).
+PROD_SUBCALL_LIMIT = 24_000
+
 
 class TestOversizeRejection:
     """oversize_rejection returns None under limit, an actionable string over."""
@@ -117,6 +132,32 @@ class TestRecommendedChunkChars:
         # tiny chunks that saturate the slots and inflate latency. Companion to
         # the pool-aware budget: large chunks, few rounds.
         assert recommended_chunk_chars(24_576, MODEL) > 0.5 * safe_chunk_chars(24_576, MODEL)
+
+
+class TestServedWindowFit:
+    """A guard-passing sub-call prompt must provably fit the SERVED context
+    window (32768 tokens) in REAL tokens, with output headroom. The guard sizes
+    everything from chars via CONSERVATIVE_CHARS_PER_TOKEN, so if that constant
+    over-states chars/token (claims more chars per token than the real gemma
+    tokenizer delivers) the hard ceiling lands ABOVE the server window and the
+    send 400s. Regression for the 2026-06-24 GATE #2 oversized-chunk failure."""
+
+    def test_safe_ceiling_fits_served_window_with_output_headroom(self):
+        # The largest prompt the guard will pass (safe_chunk_chars), measured at
+        # the real served-tokenizer density, must still leave room for output.
+        ceiling_chars = safe_chunk_chars(PROD_SUBCALL_LIMIT, MODEL)
+        real_tokens = ceiling_chars / MEASURED_GEMMA_CHARS_PER_TOKEN
+        assert real_tokens <= SERVED_CTX_TOKENS - SUBCALL_OUTPUT_RESERVE_TOKENS, (
+            f"max guard-passing prompt is ~{real_tokens:.0f} real tokens, which "
+            f"does not fit the {SERVED_CTX_TOKENS}-token served window with a "
+            f"{SUBCALL_OUTPUT_RESERVE_TOKENS}-token output reserve"
+        )
+
+    def test_recommended_chunk_fits_served_window(self):
+        # The advisory chunk size must also fit the served window in real tokens.
+        rec_chars = recommended_chunk_chars(PROD_SUBCALL_LIMIT, MODEL)
+        real_tokens = rec_chars / MEASURED_GEMMA_CHARS_PER_TOKEN
+        assert real_tokens <= SERVED_CTX_TOKENS - SUBCALL_OUTPUT_RESERVE_TOKENS
 
 
 def count_estimate(prompt: str) -> int:

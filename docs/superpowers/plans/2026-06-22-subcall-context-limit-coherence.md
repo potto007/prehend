@@ -39,7 +39,7 @@ realigns. New ADR-0009 required (first INPUT-axis guard; companions ADR-0002/000
   -> None -> runtime.ctx unavailable. EFFECTIVE limit must come from the explicit param
   (driver passes 98304) or get_context_limit fallback. The /v1/models meta DID report
   n_ctx=98304 (probe could be improved to read it; nice-to-have).
-- bge-m3 :8081, e4b distiller :8083 up. Eval driver: rlm-trainer scripts/memory_cold_warm.py
+- bge-m3 :8084, e4b distiller :8083 up. Eval driver: rlm-trainer scripts/memory_cold_warm.py
   -> benchmark.run_benchmark. rlm-trainer .venv is runtime; prehend editable-installed.
 - Durable run state ~/eval-runs/mem-v13-plain-multihop-e4b/ (cold 15/15; bank had bad entry
   exp_840d65c8 advising single-shot whole-context -> purge/regenerate).
@@ -186,8 +186,18 @@ Regression: test_max_output_chars_default_500; test_subcall_verifier_default_non
   recommended value so the model makes several fast parallel chunks, not 1-2 giant slow ones.
   Guard still only rejects what genuinely won't fit (ceiling). 3 old tests updated +
   TestRecommendedChunkChars added; 706 green.
-- Validating v3 (same 3 tasks vs v2 250K-char baseline: 000 424s ok / 001 543s wrong / 002 618s
-  timeout) - expect 002 to complete faster / under 600s. Commit the tune after the result.
+- v3 RESULT (tuned 88K vs v2 250K, same 3 tasks): INCONCLUSIVE latency. 000 ok-but-SLOWER
+  (424->572s), 001 wrong->CORRECT & faster (543->424s), 002 still timeout (618->660s, made only
+  2 big chunks). 0 overflow, 0 bare sub-calls. Root: the 12B model does NOT reliably honor the
+  advised chunk size on hard tasks -> the timeout tail is MODEL BEHAVIOR, not the advised number.
+  Decoupling is still the correct design (recommending the max chunk is wrong) + harmless.
+  COMMITTED prehend b150371. Stronger lever for the tail = auto-chunk ENFORCEMENT in code (the
+  deferred ADR-0009 option B) or model training - future work.
+
+## FINAL STATUS: COMPLETE + COMMITTED
+- prehend: ab59ed3 (core fix), b150371 (chunk decouple). rlm-trainer: 306cdaf (driver).
+- 706 tests green. ADR-0009. Overflow eliminated. Cold 40% -> Warm 53.3% (+13.3pp) on
+  plain-multihop. Residual = perf tail (model-behavior, documented future work).
 
 ## (historical) COLD/WARM RUN: LAUNCHED (harness task bffjg91v1)
 - Script: ~/eval-runs/mem-v13-plain-multihop-fix-2026-06-22/run-cold-warm.sh

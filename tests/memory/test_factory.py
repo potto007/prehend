@@ -141,11 +141,11 @@ def test_from_config_routes_embed_to_separate_endpoint(monkeypatch, tmp_path):
         FakeSolver(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma",
-        embed_base_url="http://localhost:8081/v1",
+        embed_base_url="http://localhost:8084/v1",
         embed_api_key="embed-key",
     )
     assert isinstance(harness, MemoryHarness)
-    assert seen["embed"]["base_url"] == "http://localhost:8081/v1"
+    assert seen["embed"]["base_url"] == "http://localhost:8084/v1"
     assert seen["embed"]["model"] == "bge-m3"
     assert seen["embed"]["api_key"] == "embed-key"
     assert seen["reflect"]["base_url"] == "http://localhost:8080/v1"
@@ -168,6 +168,33 @@ def test_from_config_disables_reflect_thinking_and_caps_tokens_by_default(monkey
     kw = seen["reflect"]["kw"]
     assert kw["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
     assert isinstance(kw["max_tokens"], int) and kw["max_tokens"] > 0
+
+
+def test_from_config_distiller_uses_temperature_one_by_default(monkeypatch, tmp_path):
+    # The distiller samples lessons at temperature 1.0 (diverse phrasings), unlike
+    # the deterministic RLM solve path. The factory must pass 1.0 to the reflect fn.
+    from prehend.memory.factory import build_memory_harness_from_config
+    seen = {}
+    _patch_backends(monkeypatch, seen)
+    build_memory_harness_from_config(
+        FakeSolver(), tmp_path / "mem",
+        base_url="http://localhost:8080/v1",
+        embed_model="bge-m3", reflect_model="gemma",
+    )
+    assert seen["reflect"]["kw"]["temperature"] == 1.0
+
+
+def test_from_config_reflect_temperature_is_overridable(monkeypatch, tmp_path):
+    from prehend.memory.factory import build_memory_harness_from_config
+    seen = {}
+    _patch_backends(monkeypatch, seen)
+    build_memory_harness_from_config(
+        FakeSolver(), tmp_path / "mem",
+        base_url="http://localhost:8080/v1",
+        embed_model="bge-m3", reflect_model="gemma",
+        reflect_temperature=0.3,
+    )
+    assert seen["reflect"]["kw"]["temperature"] == 0.3
 
 
 def test_from_config_reflect_budget_is_overridable(monkeypatch, tmp_path):
@@ -196,7 +223,7 @@ def test_from_config_routes_reflect_to_separate_endpoint(monkeypatch, tmp_path):
         FakeSolver(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma-4-e4b",
-        embed_base_url="http://localhost:8081/v1",
+        embed_base_url="http://localhost:8084/v1",
         reflect_base_url="http://localhost:8082/v1",
         reflect_api_key="reflect-key",
     )
@@ -204,7 +231,7 @@ def test_from_config_routes_reflect_to_separate_endpoint(monkeypatch, tmp_path):
     assert seen["reflect"]["model"] == "gemma-4-e4b"
     assert seen["reflect"]["api_key"] == "reflect-key"
     # embed and reflect endpoints are independent of each other and of base_url.
-    assert seen["embed"]["base_url"] == "http://localhost:8081/v1"
+    assert seen["embed"]["base_url"] == "http://localhost:8084/v1"
 
 
 def test_from_config_reflect_endpoint_defaults_to_base_url(monkeypatch, tmp_path):
@@ -271,3 +298,37 @@ def test_factory_defaults_preserve_correct_only(tmp_path):
     )
     assert harness.learn_from_failure is False
     assert harness.max_inject_negatives == 2
+
+
+# --- freeze_retrieval threading (write-only cold baseline) ---
+
+def test_factory_threads_freeze_retrieval(tmp_path):
+    harness = build_memory_harness(
+        FakeSolver(), tmp_path / "mem",
+        embed_backend=ConstBackend(),
+        reflect_fn=_reflect_fn({"key_insight": "k"}),
+        freeze_retrieval=True,
+    )
+    assert harness.freeze_retrieval is True
+
+
+def test_factory_freeze_retrieval_defaults_false(tmp_path):
+    harness = build_memory_harness(
+        FakeSolver(), tmp_path / "mem",
+        embed_backend=ConstBackend(),
+        reflect_fn=_reflect_fn({"key_insight": "k"}),
+    )
+    assert harness.freeze_retrieval is False
+
+
+def test_from_config_threads_freeze_retrieval(monkeypatch, tmp_path):
+    from prehend.memory.factory import build_memory_harness_from_config
+    seen = {}
+    _patch_backends(monkeypatch, seen)
+    harness = build_memory_harness_from_config(
+        FakeSolver(), tmp_path / "mem",
+        base_url="http://localhost:8080/v1",
+        embed_model="bge-m3", reflect_model="gemma",
+        freeze_retrieval=True,
+    )
+    assert harness.freeze_retrieval is True

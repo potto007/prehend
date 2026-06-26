@@ -165,6 +165,24 @@ def test_success_entry_has_derived_from_success():
     assert entry["derived_from"] == "success"
 
 
+def test_failure_and_success_for_same_question_get_distinct_ids():
+    # ADR-0011 amendment: a failure guard and a success recipe for the SAME
+    # question must NOT share an experience id. With question-only ids they
+    # collided, so the harness "success shadows failure" guard dropped every
+    # negative and the contrastive failure channel never fired on context-
+    # varying task sets (plain multihop: 60 tasks share only 5 questions).
+    # Keying the id on (question, derived_from) lets the recipe and the guard
+    # coexist so both can be retrieved/injected.
+    reflect = _reflect({"key_insight": "k"})
+    d = TraceDistiller(reflect, FakeBackend())
+    succ = d("What does Alice own?", "ctx-A", _result(), failed=False)
+    fail = d("What does Alice own?", "ctx-B", _result(), failed=True)
+    assert succ["id"] != fail["id"]
+    # but (question, provenance) is still stable -> same-provenance entries dedupe
+    again = d("What does Alice own?", "ctx-C", _result(), failed=True)
+    assert again["id"] == fail["id"]
+
+
 def test_failure_capitulation_still_filtered_to_none():
     # a failure whose only content is capitulation yields no usable entry
     reflect = _reflect({"key_insight": "the information is missing from the context",

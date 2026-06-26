@@ -42,6 +42,8 @@ def build_memory_harness(
     defer_collect: bool = False,
     learn_from_failure: bool = False,
     max_inject_negatives: int = 2,
+    context_signature: bool = False,
+    freeze_retrieval: bool = False,
     observer: MemoryObserver | None = None,
 ) -> MemoryHarness:
     """Assemble a memory-backed harness.
@@ -77,7 +79,9 @@ def build_memory_harness(
         solver, Bank(bank_dir), backend,
         k_max=k_max, min_cosine=min_cosine, distiller=distiller, tagger=tagger,
         defer_collect=defer_collect, learn_from_failure=learn_from_failure,
-        max_inject_negatives=max_inject_negatives, observer=observer,
+        max_inject_negatives=max_inject_negatives,
+        context_signature=context_signature, freeze_retrieval=freeze_retrieval,
+        observer=observer,
     )
 
 
@@ -99,9 +103,12 @@ def build_memory_harness_from_config(
     tagger: Tagger | None = None,
     reflect_enable_thinking: bool = False,
     reflect_max_tokens: int | None = 512,
+    reflect_temperature: float = 1.0,
     defer_collect: bool = False,
     learn_from_failure: bool = False,
     max_inject_negatives: int = 2,
+    context_signature: bool = False,
+    freeze_retrieval: bool = False,
     observer: MemoryObserver | None = None,
 ) -> MemoryHarness:
     """Convenience: build embedding + reflect against OpenAI-compatible servers.
@@ -109,7 +116,7 @@ def build_memory_harness_from_config(
     Reflect (trace distillation) runs against ``reflect_base_url`` when given,
     else ``base_url``; embedding against ``embed_base_url`` else ``base_url``.
     Both can be split off the solver endpoint - the common local setup where a
-    small embedding model (e.g. bge-m3 on :8081) and a small/neutral distill
+    small embedding model (e.g. bge-m3 on :8084) and a small/neutral distill
     model (e.g. Gemma 4 e4b on :8082) run on their own ports while the solver
     model is swapped on the single-model router (:8080), which must not swap.
 
@@ -128,6 +135,7 @@ def build_memory_harness_from_config(
     reflect = OpenAIReflectFn.from_config(
         base_url=reflect_base_url or base_url, model=reflect_model,
         api_key=reflect_api_key or api_key,
+        temperature=reflect_temperature,
         extra_body={"chat_template_kwargs": {"enable_thinking": reflect_enable_thinking}},
         max_tokens=reflect_max_tokens,
     )
@@ -136,5 +144,7 @@ def build_memory_harness_from_config(
         embed_backend=backend, reflect_fn=reflect,
         source=source, k_max=k_max, min_cosine=min_cosine, tagger=tagger,
         defer_collect=defer_collect, learn_from_failure=learn_from_failure,
-        max_inject_negatives=max_inject_negatives, observer=observer,
+        max_inject_negatives=max_inject_negatives,
+        context_signature=context_signature, freeze_retrieval=freeze_retrieval,
+        observer=observer,
     )

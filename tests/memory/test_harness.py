@@ -505,6 +505,42 @@ def test_failure_then_failure_dedup(tmp_path):
     assert len(bank.load()) == 1
 
 
+# --- freeze_retrieval: write-only cold baseline (true first-exposure) ---
+
+
+def test_freeze_retrieval_defaults_false(tmp_path):
+    h = MemoryHarness(FakeSolver(), Bank(tmp_path / "m"), FakeBackend())
+    assert h.freeze_retrieval is False
+
+
+def test_freeze_retrieval_suppresses_injection(tmp_path):
+    # A matching bank entry that WOULD be injected must not reach the solver when
+    # retrieval is frozen: the cold task is a true first-exposure baseline.
+    bank = Bank(tmp_path / "mem")
+    bank.append(_entry("a", [1.0, 0.0]))
+    solver = FakeSolver()
+    harness = MemoryHarness(
+        solver, bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5,
+        freeze_retrieval=True,
+    )
+    harness.answer(context="ctx", question="Q")
+    _, root_prompt = solver.calls[0]
+    assert root_prompt == "Q"  # no memory block injected
+    assert bank.load()[0]["stats"]["use_count"] == 0  # not retrieved -> not bumped
+
+
+def test_freeze_retrieval_still_writes_distilled_experience(tmp_path):
+    # Memories are still written so the bank is populated for the warm run.
+    bank = Bank(tmp_path / "mem")  # empty
+    harness = MemoryHarness(
+        FakeSolver(), bank, FakeBackend(),
+        distiller=lambda q, c, r: _entry("learned", [0.5, 0.5]),
+        freeze_retrieval=True,
+    )
+    harness.answer(context="ctx", question="q")
+    assert [e["id"] for e in bank.load()] == ["learned"]
+
+
 # --- polarity-aware injection cap (Unit D) ---
 
 def _bank_with_polarities(tmp_path, n_pos, n_neg, emb):
