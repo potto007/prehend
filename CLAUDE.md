@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-prehend (formerly mnemex, originally lm-repl; import path `prehend`, repo `potto007/prehend`, on-disk dir `/home/potto/src/prehend`) is a language-model harness that learns. Context is offloaded into a variable inside a REPL environment, and the model writes programs that slice, search, and recursively query that context instead of attending over it directly; an experience-memory layer (`prehend/memory/`) distills and retrieves past solves so each run improves on the last. See ADR-0007 for the rename to prehend, ADR-0006 for the prior mnemex rename, and ADR-0005 for the memory layer.
+prehend (originally lm-repl; import path `prehend`, repo `potto007/prehend`, on-disk dir `~/src/prehend`) is a language-model harness that learns. Context is offloaded into a variable inside a REPL environment, and the model writes programs that slice, search, and recursively query that context instead of attending over it directly; an experience-memory layer (`prehend/memory/`) distills and retrieves past solves so each run improves on the last. See ADR-0007 for the rename to prehend and ADR-0005 for the memory layer.
 
 This venv uses `uv` (there is NO `pip` binary in `.venv/bin`; use `~/.local/bin/uv`).
 
@@ -56,18 +56,11 @@ Ops: kill the server by explicit PID (NEVER `pkill -f llama-server` - self-match
 2. ALWAYS organize files in appropriate subdirectories
 3. **USE CLAUDE CODE'S TASK TOOL** for spawning agents concurrently, not just MCP
 
-## Plan Mode
-
-- Make the plan extremely concise. Sacrifice grammar for the sake of concision.
-- At the end of each plan, give me a list of unresolved questions to answer, if any.
-
-## Backlog
-
-Canonical issue tracker: **GitHub Issues & Milestones** at `ClearBridgeRIP/rlm-trainer`. After completing work, remove any `status:not-started` / `status:partial` labels from relevent issues; close relevant issues with `gh issue close <id> --comment "..."` referencing the commit.
-
 ## Git interactions
 
 **Important**: NEVER ever mention a co-authored-by or similar aspects. In particular, never mention the tool used to create the commit message or PR.
+
+Commit early, commit often.
 
 For commits related to a Github issue, add: `git commit --trailer "Github-Issue:#<number>"` where <number> is the Github Issue number.
 
