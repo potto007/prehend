@@ -23,6 +23,7 @@ from typing import Any, Protocol
 from prehend.memory.bank import Bank
 from prehend.memory.embed import EmbeddingBackend
 from prehend.memory.inject import render_memory_block
+from prehend.memory.signature import context_signature
 from prehend.memory.retrieve import (
     DEFAULT_K_MAX,
     DEFAULT_MIN_COSINE,
@@ -104,6 +105,7 @@ class MemoryHarness:
         defer_collect: bool = False,
         learn_from_failure: bool = False,
         max_inject_negatives: int = 2,
+        context_signature: bool = False,
         observer: MemoryObserver | None = None,
     ) -> None:
         self.solver = solver
@@ -113,6 +115,12 @@ class MemoryHarness:
         self.min_cosine = min_cosine
         self.distiller = distiller
         self.tagger = tagger or NullTagger()
+        # When True, stamp each experience with a ctx_sig tag derived from the
+        # solved document and pass it as a query tag, so the existing tag-gate
+        # excludes a different document's same-question experience (the bare
+        # question embeds at cosine ~= 1.0 regardless of document). Default off
+        # keeps the embedding-only path byte-identical for other consumers.
+        self.context_signature = context_signature
         self.observer = observer or NullObserver()
         # Contrastive failure channel (ADR-0010): when True, collect_pending(False)
         # distills a WRONG solve into a negative guard-rule entry instead of
@@ -152,6 +160,12 @@ class MemoryHarness:
             query_tags = self.tagger.tag(question)
         except Exception:
             query_tags = {}
+        # Document-signature gate (opt-in): both _retrieve (query tag) and
+        # _collect (stamped onto the new entry) consume query_tags, so adding
+        # ctx_sig here both filters retrieval and records the experience's own
+        # document identity in one place.
+        if self.context_signature:
+            query_tags = {**query_tags, "ctx_sig": context_signature(context)}
         entries, scores, error, retrieve_seconds = self._retrieve(question, query_tags)
 
         # Polarity-aware cap: never let failure-derived guard rules crowd positive

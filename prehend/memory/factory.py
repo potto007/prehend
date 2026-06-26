@@ -42,6 +42,7 @@ def build_memory_harness(
     defer_collect: bool = False,
     learn_from_failure: bool = False,
     max_inject_negatives: int = 2,
+    context_signature: bool = False,
     observer: MemoryObserver | None = None,
 ) -> MemoryHarness:
     """Assemble a memory-backed harness.
@@ -77,7 +78,8 @@ def build_memory_harness(
         solver, Bank(bank_dir), backend,
         k_max=k_max, min_cosine=min_cosine, distiller=distiller, tagger=tagger,
         defer_collect=defer_collect, learn_from_failure=learn_from_failure,
-        max_inject_negatives=max_inject_negatives, observer=observer,
+        max_inject_negatives=max_inject_negatives,
+        context_signature=context_signature, observer=observer,
     )
 
 
@@ -103,6 +105,7 @@ def build_memory_harness_from_config(
     defer_collect: bool = False,
     learn_from_failure: bool = False,
     max_inject_negatives: int = 2,
+    context_signature: bool = False,
     observer: MemoryObserver | None = None,
 ) -> MemoryHarness:
     """Convenience: build embedding + reflect against OpenAI-compatible servers.
@@ -138,5 +141,6 @@ def build_memory_harness_from_config(
         embed_backend=backend, reflect_fn=reflect,
         source=source, k_max=k_max, min_cosine=min_cosine, tagger=tagger,
         defer_collect=defer_collect, learn_from_failure=learn_from_failure,
-        max_inject_negatives=max_inject_negatives, observer=observer,
+        max_inject_negatives=max_inject_negatives,
+        context_signature=context_signature, observer=observer,
     )

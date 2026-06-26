@@ -106,6 +106,12 @@ class MemoryConfig:
     # injected block so failure lessons cannot crowd out positive recipes.
     learn_from_failure: bool = False
     max_inject_negatives: int = 2
+    # Document-signature retrieval gate: when True, each experience is stamped
+    # with a ctx_sig tag from its source document and retrieval excludes entries
+    # whose document conflicts with the one being solved (the bare-question
+    # embedding alone cannot tell two same-question, different-document tasks
+    # apart). Default off keeps the embedding-only path byte-identical.
+    context_signature: bool = False
     # Telemetry sink for retrieve/collect events. Pass
     # prehend.metrics.memory_observer() to emit the localai_prehend_memory_*
     # Prometheus series; None -> MemoryHarness installs a no-op NullObserver, so
@@ -327,6 +333,7 @@ class Harness:
                 defer_collect=memory.defer_collect,
                 learn_from_failure=memory.learn_from_failure,
                 max_inject_negatives=memory.max_inject_negatives,
+                context_signature=memory.context_signature,
                 observer=memory.observer,
                 **tight,
             )
