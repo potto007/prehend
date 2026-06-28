@@ -71,6 +71,15 @@ class Defaults:
     # did (ADR-0012), so each sub-call is budgeted against the FULL resolved pool
     # (the per-request context-length cap). Default False keeps the llama.cpp path.
     dynamic_kv_pool: bool = False
+    # Generation cap for the ROOT orchestrator turn (tokens). Unset, the root rides
+    # DEFAULT_MAX_DECODE_TOKENS=8192 (lm_handler), and a degenerate repeat/stutter
+    # iteration runs to that ceiling (~8192 tok ~= 105s, 0 code blocks, no progress)
+    # before the iteration-boundary timeout can fire - the dominant slow-task cost
+    # in the gnosis-0.2 triage sweep (RCA 2026-06-28). 2048 is ~6-10x a legit root
+    # turn (corpus/icd answers ~200-330 tok) so it ONLY bounds degenerate stutters;
+    # sub-calls are untouched via root_max_tokens (NOT max_decode_tokens), so
+    # extraction-map sub-calls keep the 8192 headroom (ADR-0018). ~105s -> ~26s.
+    root_max_tokens: int = 2048
 
 
 VETTED = Defaults()
@@ -302,6 +311,7 @@ class Harness:
             max_timeout=timeout,
             max_concurrent_subcalls=self.subcall_runtime.slots,
             soft_timeout_pct=d.soft_timeout_pct,
+            root_max_tokens=d.root_max_tokens,
             logger=logger,
             verbose=False,
         )
