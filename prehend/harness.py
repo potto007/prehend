@@ -49,6 +49,16 @@ class Defaults:
     # entirely (server-side default RNG), keeping prior behavior byte-identical.
     seed: int | None = None
     subcall_enable_thinking: bool = False
+    # Thinking toggle for the top-level orchestrator RLM call (distinct from the
+    # sub-call one above). Gemma has no thinking mode so this was implicit; a
+    # thinking-capable base (Qwen3 et al.) defaults thinking ON in its chat
+    # template, which would wrap the orchestrator's REPL actions in <think> and
+    # break parsing / burn the iteration budget. Default False keeps the
+    # orchestrator deterministic and non-thinking, matching the Gemma path.
+    # Rides via chat_template_kwargs, ignored by templates that don't reference
+    # enable_thinking (e.g. Gemma), so the existing served-solver path is
+    # byte-identical.
+    rlm_enable_thinking: bool = False
     max_concurrent_subcalls: int = 4
     soft_timeout_pct: float | None = None
     # Sub-model context window (tokens) for the input-size guard. None lets the
@@ -263,7 +273,10 @@ class Harness:
         backend_kwargs = {
             "model_name": model, "base_url": base_url, "api_key": api_key,
             "max_retries": d.max_retries, "stream": d.stream,
-            "default_extra_body": dict(solve_extra_body),
+            "default_extra_body": {
+                **solve_extra_body,
+                "chat_template_kwargs": {"enable_thinking": d.rlm_enable_thinking},
+            },
         }
         subcall_kwargs = dict(backend_kwargs)
         subcall_kwargs["base_url"] = eff_subcall_url
