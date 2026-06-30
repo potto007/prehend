@@ -49,7 +49,7 @@ your repo's "gemma-4" matches the public model IDs exactly.
 The SGLang Gemma 4 cookbook lists five supported variants:
 - `google/gemma-4-E2B-it` (~2B, dense)
 - **`google/gemma-4-E4B-it` (~4B effective, dense, Per-Layer Embeddings)** ← your distiller
-- **`google/gemma-4-12B-it` (12B dense, "encoder-free unified")** ← your solver
+- **`google/gemma-4-12B-it` (12B dense, "encoder-free unified")** ← your Gnosis model
 - `google/gemma-4-31B-it` (31B dense)
 - `google/gemma-4-26B-A4B-it` (26B total / 4B active, MoE)
 
@@ -174,7 +174,7 @@ sink the migration.
      co-batching (acceptable: the distiller runs out-of-band, not in the hot RLM loop).
   2. **Distiller as a second process you start on demand** (it's an offline experience-
      distill step, not latency-critical) - start it, run distillation, stop it, freeing VRAM
-     for the solver. Cleanest VRAM-wise.
+     for the inference server. Cleanest VRAM-wise.
   3. SGLang "Universal Memory" multi-model hosting with CPU/disk offload of the inactive
      model - exists but adds complexity; only if you truly need both hot simultaneously.
      [hf-sglang]

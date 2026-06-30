@@ -56,7 +56,7 @@ class Defaults:
     # break parsing / burn the iteration budget. Default False keeps the
     # orchestrator deterministic and non-thinking, matching the Gemma path.
     # Rides via chat_template_kwargs, ignored by templates that don't reference
-    # enable_thinking (e.g. Gemma), so the existing served-solver path is
+    # enable_thinking (e.g. Gemma), so the existing served-inference path is
     # byte-identical.
     rlm_enable_thinking: bool = False
     max_concurrent_subcalls: int = 4
@@ -101,8 +101,8 @@ class MemoryConfig:
     embed_url: str | None = None
     embed_api_key: str | None = None
     # Distill endpoint: when set, reflect runs on its own server (e.g. a small
-    # neutral model like Gemma 4 e4b on :8082) instead of the solver router,
-    # which must not swap. Defaults to the solver base_url.
+    # neutral model like Gemma 4 e4b on :8082) instead of the inference server router,
+    # which must not swap. Defaults to the inference server base_url.
     reflect_url: str | None = None
     reflect_api_key: str | None = None
     k_max: int | None = None
@@ -223,7 +223,7 @@ class Harness:
         d = defaults or VETTED
         self.runtime = self._resolve_runtime(runtime, base_url, api_key, d)
 
-        # Dual-instance weight-shared solver (ADR-0013): sub-calls may target a
+        # Dual-instance weight-shared inference server (ADR-0013): sub-calls may target a
         # separate llama-server worker that shares the master's weights via CUDA
         # IPC but holds its OWN private KV pool. When subcall_base_url is set the
         # sub-call backend routes there and its budget/fan-out come from the
@@ -341,12 +341,12 @@ class Harness:
         self.srlm = SRLM(**srlm_kwargs)
         if observability is not None:
             observability(self.srlm)
-        self.solver = self.srlm
+        self.inference_client = self.srlm
         if memory is not None:
             from prehend.memory.factory import build_memory_harness_from_config
             tight = {k: v for k, v in (("k_max", memory.k_max),
                                        ("min_cosine", memory.min_cosine)) if v is not None}
-            self.solver = build_memory_harness_from_config(
+            self.inference_client = build_memory_harness_from_config(
                 self.srlm,
                 bank_dir=memory.bank_dir,
                 base_url=base_url,
@@ -380,7 +380,7 @@ class Harness:
         return Runtime(slots=d.max_concurrent_subcalls)
 
     def completion(self, context: str, query: str) -> "RLMChatCompletion":
-        return self.solver.completion(context, query)
+        return self.inference_client.completion(context, query)
 
     def record_outcome(self, correct: bool | None = True) -> None:
         """Distill the last solve when memory uses deferred collection.
@@ -391,7 +391,7 @@ class Harness:
         negative guard rule (the contrastive failure channel, ADR-0010). No-op
         when memory is off or not deferring. Best-effort: never raises.
         """
-        collect = getattr(self.solver, "collect_pending", None)
+        collect = getattr(self.inference_client, "collect_pending", None)
         if collect is not None:
             try:
                 collect(correct)

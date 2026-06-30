@@ -3,30 +3,30 @@ status: "accepted"
 date: "2026-06-26"
 deciders: "potto"
 consulted: "research agents (vLLM, SGLang); ADR-0015 evaluation"
-supersedes: "0016-sglang-as-served-solver"
+supersedes: "0016-sglang-as-served-inference"
 ---
 
-# vLLM as the served solver: gemma-4 v13 on vLLM 0.23.0, retire the SGLang/dual-context path
+# vLLM as the served inference: gemma-4 v13 on vLLM 0.23.0, retire the SGLang/dual-context path
 
 ## Context and Problem Statement
 
 [ADR-0015](0015-inference-engine-evaluation-vllm-sglang.md) evaluated vLLM and
 SGLang as single-engine replacements for the dual-context llama.cpp fork
-([ADR-0014](0014-single-process-dual-context-solver.md)), whose two `llama_context`
+([ADR-0014](0014-single-process-dual-context-inference.md)), whose two `llama_context`
 schedulers cannot co-batch and lose ~37% decode throughput under the concurrent
 orchestrator+worker load the RLM pattern produces. The 2026-06-26 Update to
 ADR-0015 flipped the lean to **vLLM-first** (vLLM 0.23.0 ships stable encoder-free
 Gemma 4 Unified + MTP, WSL2 is on 2.7.8, TurboQuant KV is vLLM-only, and vLLM has
 lower setup friction than SGLang's main + pinned-transformers + SM_120 dance).
 
-[ADR-0016](0016-sglang-as-served-solver.md) (SGLang as the served solver) was the
+[ADR-0016](0016-sglang-as-served-inference.md) (SGLang as the served inference) was the
 prior direction and reached a WORKING SGLang serving setup (gate-1), but it was
 never accepted. This ADR ratifies the vLLM-first outcome of ADR-0015 and
-supersedes ADR-0016: **vLLM 0.23.0 is the served solver**.
+supersedes ADR-0016: **vLLM 0.23.0 is the served inference**.
 
 ## Decision Outcome
 
-Chosen: **serve the v13 solver (`gemma-4-12B-it-sft-kb-v13-sft`) with vLLM 0.23.0
+Chosen: **serve the Gnosis v13 model (`gemma-4-12B-it-sft-kb-v13-sft`) with vLLM 0.23.0
 on `:8080`**, one engine for both orchestrator and worker roles (continuous
 batching + paged-KV / prefix caching co-batch what the two `llama_context` could
 not). The SGLang infra stays on disk for rollback but its systemd unit and
@@ -54,7 +54,7 @@ Validated on the RTX 5090 (32GB, SM_120), CUDA 13, WSL2, 2026-06-26:
 
 ### Config (production)
 
-`localai-vllm-solver.service` ExecStart:
+`localai-vllm.service` ExecStart:
 
 ```
 vllm serve <ckpt-vllm> \
@@ -99,7 +99,7 @@ dir (no duplication). The SGLang `-ct` dir is left untouched for rollback.
   become capacity-bound (we are not - fp8 e4m3 is the proven floor, ADR-0019).
 - Neutral: vLLM startup does a one-time torch.compile (~40s) + cudagraph capture;
   cached after first run.
-- Rollback: re-enable the SGLang systemd unit + the `sglang-solver` Prometheus job
+- Rollback: re-enable the SGLang systemd unit + the `sglang-inference` Prometheus job
   (both left commented/stopped, not deleted).
 
 ## Infra delivered
@@ -109,9 +109,9 @@ dir (no duplication). The SGLang `-ct` dir is left untouched for rollback.
 - `~/src/local-ai/scripts/vllm-launch.sh` - drop-in `vllm serve` wrapper teeing to
   the canonical `/tmp/vllm-server.log` (monitoring-rail rule).
 - `~/src/local-ai/scripts/vllm-server.sh {start|stop|status|smoke|logs|tail}`.
-- `~/src/local-ai/scripts/localai-vllm-solver.service` (linked + enabled).
+- `~/src/local-ai/scripts/localai-vllm.service` (linked + enabled).
 - Promtail `vllm` job (`/tmp/vllm-server.log` -> Loki `{job="vllm"}`).
-- Prometheus `vllm-solver` scrape job (sglang-solver disabled); Grafana dashboard
+- Prometheus `vllm-inference` scrape job (sglang-inference disabled); Grafana dashboard
   `local-ai (vLLM)` (uid `local-ai-vllm`).
 
 ## Attention backend: TRITON_ATTN is the only option (2026-06-26)
@@ -156,6 +156,6 @@ Measured on plain-multihop (each task ~315k chars / ~150k tokens, map-reduced):
 ## More Information
 
 - [ADR-0015](0015-inference-engine-evaluation-vllm-sglang.md) (evaluation + vLLM-first Update)
-- [ADR-0016](0016-sglang-as-served-solver.md) (superseded)
-- [ADR-0019](0019-fp8-e4m3-kv-cache-for-gemma4-solver.md) (fp8 e4m3 KV rationale)
+- [ADR-0016](0016-sglang-as-served-inference.md) (superseded)
+- [ADR-0019](0019-fp8-e4m3-kv-cache-for-gemma4.md) (fp8 e4m3 KV rationale)
 - vLLM v0.23.0 release; compressed-tensors + fp8 KV docs.

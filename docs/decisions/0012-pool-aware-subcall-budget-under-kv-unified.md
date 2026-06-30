@@ -10,7 +10,7 @@ deciders: "potto"
 
 ADR-0009 added a per-prompt input-size guard and ADR-0010 added auto-chunk map-reduce, both
 bounding a SINGLE sub-call's input against `subcall_context_limit` (the served model's
-context window). The eval passes `--subcall-context-limit 98304` to match the v13 solver
+context window). The eval passes `--subcall-context-limit 98304` to match the v13 model
 (`gemma-4-12b-it-sft-kb-v13-sft`, served at `n_ctx = 98304`). Despite both guards, long
 plain-multihop solves kept dying with task-level `500 Context size has been exceeded` and
 600s timeouts that CONFOUNDED every memory A/B (cold/warm regressions on `002/008/011`,

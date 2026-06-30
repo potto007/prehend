@@ -1,8 +1,8 @@
-# Dual-instance Weight-shared Solver Implementation Plan
+# Dual-instance Weight-shared Inference Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Serve the v13 solver as two persistent llama-server processes (orchestrator master :8080, sub-call worker :8081) that share one VRAM weights copy via CUDA IPC, giving each role a private KV pool and prefix cache; teach the prehend Harness to route sub-calls to the worker endpoint and budget per-instance.
+**Goal:** Serve the v13 Gnosis model as two persistent llama-server processes (orchestrator master :8080, sub-call worker :8081) that share one VRAM weights copy via CUDA IPC, giving each role a private KV pool and prefix cache; teach the prehend Harness to route sub-calls to the worker endpoint and budget per-instance.
 
 **Architecture:** `cuda-llm-weight-share.so` (LD_PRELOAD) intercepts the weights `cudaMalloc` so the worker maps the master's copy; KV stays private per process. Prehend's `Harness` gains a `subcall_base_url` param: the orchestrator backend keeps `base_url`, the sub-call backend uses `subcall_base_url`, and the sub-call budget divides the *worker's* dedicated pool by the *worker's* slots (ADR-0012 made per-instance).
 
@@ -91,7 +91,7 @@ Expected: PASS (both new tests + all existing).
 
 ```bash
 git add prehend/harness.py tests/test_harness.py
-git commit -m "feat(harness): route sub-calls to subcall_base_url (dual-instance solver)"
+git commit -m "feat(harness): route sub-calls to subcall_base_url (dual-instance inference)"
 ```
 
 ### Task A2: Sub-call budget + fan-out come from the worker runtime
@@ -201,7 +201,7 @@ git commit -m "test(harness): worker-runtime auto-probe fallback"
 ### Task A4: ADR + docstring
 
 **Files:**
-- Create: `docs/decisions/0013-dual-instance-weight-shared-solver.md`
+- Create: `docs/decisions/0013-dual-instance-weight-shared-inference.md`
 - Modify: `prehend/harness.py` (class docstring note on the new param)
 
 - [ ] **Step 1: Write the ADR** (MADR format, matching `docs/decisions/0012-*.md`): context = kv-unified shared-pool contention + prefix eviction; decision = two weight-shared instances, Harness `subcall_base_url`, per-instance budget; consequences = no idle-unload on the pair, master-first ordering, N x prefix KV; supersedes-extends ADR-0012. NO em dashes.
@@ -211,8 +211,8 @@ git commit -m "test(harness): worker-runtime auto-probe fallback"
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/decisions/0013-dual-instance-weight-shared-solver.md prehend/harness.py
-git commit -m "docs(adr): 0013 dual-instance weight-shared solver (extends 0012)"
+git add docs/decisions/0013-dual-instance-weight-shared-inference.md prehend/harness.py
+git commit -m "docs(adr): 0013 dual-instance weight-shared inference (extends 0012)"
 ```
 
 ---
@@ -248,8 +248,8 @@ Expected: a `cudaMalloc normal: ~6650 MB (<bytes>)` line near the model size. Re
 ### Task B2: Two systemd user units + `start-pair`/`stop-pair`
 
 **Files:**
-- Create: `~/src/local-ai/scripts/localai-llama-solver-orch.service`
-- Create: `~/src/local-ai/scripts/localai-llama-solver-worker.service`
+- Create: `~/src/local-ai/scripts/localai-llama-orch.service`
+- Create: `~/src/local-ai/scripts/localai-llama-worker.service`
 - Modify: `~/src/local-ai/scripts/llama-server.sh` (add `start-pair`, `stop-pair`, `status-pair`)
 
 Both units set: `LD_PRELOAD`, `LD_LIBRARY_PATH=/usr/local/cuda-13/lib64`, `CUDA_VISIBLE_DEVICES=0`, `MODEL_SIZE=<B1 bytes>`, `CUDA_VRAM_IPC_NAME=/cuda_vram_ipc_v13_gpu0`, `CUDA_VRAM_IPC_SHM_SIZE_WAIT_SEC=3`. Launch plain `--model .../v13-sft.Q4_0.gguf` (NOT `--models-preset`) with shared knobs `--flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --swa-full true --cache-reuse 256 --cache-ram 4096 --jinja --temp 0 --n-gpu-layers 99 --batch-size 4096 --ubatch-size 1024`. NO `--sleep-idle-seconds` on either unit (idle-unload would free the master's shared weights). Per-role:
@@ -301,7 +301,7 @@ Run the sustained multihop benchmark (not a single burst). Expected in the serve
 
 ```bash
 cd ~/src/local-ai && git add scripts/ && \
-git commit -m "feat(serving): dual-instance weight-shared v13 solver pair (prehend ADR-0013)"
+git commit -m "feat(serving): dual-instance weight-shared v13 inference pair (prehend ADR-0013)"
 ```
 
 ### Task B4: Lifecycle guard check

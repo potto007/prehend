@@ -136,7 +136,7 @@ class SRLM(RLM):
 
         # Direct mode is a top-level solve, so it uses the ORCHESTRATOR backend
         # (self.backend), not the sub-call backend (other_backends[0]). Under the
-        # dual-instance weight-shared solver (ADR-0013) those are different
+        # dual-instance weight-shared inference server (ADR-0013) those are different
         # servers: the orchestrator runs CoT-on, the sub-call worker CoT-off, so
         # a direct answer must come from the orchestrator.
         backend_name = self.backend

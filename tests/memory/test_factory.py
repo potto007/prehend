@@ -10,7 +10,7 @@ from prehend.memory.factory import build_memory_harness
 from prehend.memory.harness import MemoryHarness
 
 
-class FakeSolver:
+class FakeInferenceClient:
     def __init__(self, answer="42"):
         self.answer = answer
         self.calls = []
@@ -33,7 +33,7 @@ def _reflect_fn(payload):
 
 def test_returns_memory_harness_wired_to_bank(tmp_path):
     harness = build_memory_harness(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         embed_backend=ConstBackend(),
         reflect_fn=_reflect_fn({"key_insight": "k"}),
     )
@@ -45,7 +45,7 @@ def test_returns_memory_harness_wired_to_bank(tmp_path):
 def test_requires_an_embedding_backend_or_client(tmp_path):
     with pytest.raises(ValueError):
         build_memory_harness(
-            FakeSolver(), tmp_path / "mem",
+            FakeInferenceClient(), tmp_path / "mem",
             reflect_fn=_reflect_fn({"key_insight": "k"}),
         )
 
@@ -53,15 +53,15 @@ def test_requires_an_embedding_backend_or_client(tmp_path):
 def test_requires_a_reflect_fn_or_client(tmp_path):
     with pytest.raises(ValueError):
         build_memory_harness(
-            FakeSolver(), tmp_path / "mem",
+            FakeInferenceClient(), tmp_path / "mem",
             embed_backend=ConstBackend(),
         )
 
 
 def test_full_loop_learns_then_retrieves(tmp_path):
-    solver = FakeSolver(answer="seven")
+    inference_client = FakeInferenceClient(answer="seven")
     harness = build_memory_harness(
-        solver, tmp_path / "mem",
+        inference_client, tmp_path / "mem",
         embed_backend=ConstBackend(),
         reflect_fn=_reflect_fn({
             "polarity": "positive",
@@ -74,13 +74,13 @@ def test_full_loop_learns_then_retrieves(tmp_path):
 
     # Call 1: empty bank -> no memory injected, but collect writes an experience.
     harness.answer(context="ctx", question="How many widgets?")
-    _, root_prompt_1 = solver.calls[0]
+    _, root_prompt_1 = inference_client.calls[0]
     assert root_prompt_1 == "How many widgets?"  # no-memory path, byte-identical
     assert len(harness.bank.load()) == 1
 
     # Call 2: same question -> the learned experience is retrieved and injected.
     harness.answer(context="ctx", question="How many widgets?")
-    _, root_prompt_2 = solver.calls[1]
+    _, root_prompt_2 = inference_client.calls[1]
     assert "<Memory_Block>" in root_prompt_2
     assert "count by chunking the table" in root_prompt_2
     # Retrieval bumped the entry's use_count.
@@ -95,7 +95,7 @@ class FakeTagger:
 def test_tagger_is_passed_through(tmp_path):
     tagger = FakeTagger()
     harness = build_memory_harness(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         embed_backend=ConstBackend(),
         reflect_fn=_reflect_fn({"key_insight": "k"}),
         tagger=tagger,
@@ -105,7 +105,7 @@ def test_tagger_is_passed_through(tmp_path):
 
 def test_full_loop_dedups_same_question(tmp_path):
     harness = build_memory_harness(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         embed_backend=ConstBackend(),
         reflect_fn=_reflect_fn({"key_insight": "k", "findings": ["f"]}),
         min_cosine=0.5,
@@ -138,7 +138,7 @@ def test_from_config_routes_embed_to_separate_endpoint(monkeypatch, tmp_path):
     seen = {}
     _patch_backends(monkeypatch, seen)
     harness = build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma",
         embed_base_url="http://localhost:8084/v1",
@@ -161,7 +161,7 @@ def test_from_config_disables_reflect_thinking_and_caps_tokens_by_default(monkey
     seen = {}
     _patch_backends(monkeypatch, seen)
     build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma",
     )
@@ -177,7 +177,7 @@ def test_from_config_distiller_uses_temperature_one_by_default(monkeypatch, tmp_
     seen = {}
     _patch_backends(monkeypatch, seen)
     build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma",
     )
@@ -189,7 +189,7 @@ def test_from_config_reflect_temperature_is_overridable(monkeypatch, tmp_path):
     seen = {}
     _patch_backends(monkeypatch, seen)
     build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma",
         reflect_temperature=0.3,
@@ -202,7 +202,7 @@ def test_from_config_reflect_budget_is_overridable(monkeypatch, tmp_path):
     seen = {}
     _patch_backends(monkeypatch, seen)
     build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma",
         reflect_enable_thinking=True, reflect_max_tokens=2048,
@@ -214,13 +214,13 @@ def test_from_config_reflect_budget_is_overridable(monkeypatch, tmp_path):
 
 def test_from_config_routes_reflect_to_separate_endpoint(monkeypatch, tmp_path):
     # Distill can run on its own server (e.g. a small model on :8082) while the
-    # solver model stays on the :8080 router. reflect_base_url overrides; embed
+    # Gnosis model stays on the :8080 router. reflect_base_url overrides; embed
     # still routes independently.
     from prehend.memory.factory import build_memory_harness_from_config
     seen = {}
     _patch_backends(monkeypatch, seen)
     build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma-4-e4b",
         embed_base_url="http://localhost:8084/v1",
@@ -239,11 +239,11 @@ def test_from_config_reflect_endpoint_defaults_to_base_url(monkeypatch, tmp_path
     seen = {}
     _patch_backends(monkeypatch, seen)
     build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma", api_key="shared-key",
     )
-    # No reflect_base_url -> reflect reuses the solver endpoint + key.
+    # No reflect_base_url -> reflect reuses the inference server endpoint + key.
     assert seen["reflect"]["base_url"] == "http://localhost:8080/v1"
     assert seen["reflect"]["api_key"] == "shared-key"
 
@@ -253,7 +253,7 @@ def test_from_config_threads_defer_collect(monkeypatch, tmp_path):
     seen = {}
     _patch_backends(monkeypatch, seen)
     harness = build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma",
         defer_collect=True,
@@ -266,7 +266,7 @@ def test_from_config_embed_endpoint_defaults_to_base_url(monkeypatch, tmp_path):
     seen = {}
     _patch_backends(monkeypatch, seen)
     build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma",
         api_key="shared-key",
@@ -280,7 +280,7 @@ def test_from_config_embed_endpoint_defaults_to_base_url(monkeypatch, tmp_path):
 
 def test_factory_threads_learn_from_failure_and_cap(tmp_path):
     harness = build_memory_harness(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         embed_backend=ConstBackend(),
         reflect_fn=_reflect_fn({"key_insight": "k"}),
         learn_from_failure=True,
@@ -292,7 +292,7 @@ def test_factory_threads_learn_from_failure_and_cap(tmp_path):
 
 def test_factory_defaults_preserve_correct_only(tmp_path):
     harness = build_memory_harness(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         embed_backend=ConstBackend(),
         reflect_fn=_reflect_fn({"key_insight": "k"}),
     )
@@ -304,7 +304,7 @@ def test_factory_defaults_preserve_correct_only(tmp_path):
 
 def test_factory_threads_freeze_retrieval(tmp_path):
     harness = build_memory_harness(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         embed_backend=ConstBackend(),
         reflect_fn=_reflect_fn({"key_insight": "k"}),
         freeze_retrieval=True,
@@ -314,7 +314,7 @@ def test_factory_threads_freeze_retrieval(tmp_path):
 
 def test_factory_freeze_retrieval_defaults_false(tmp_path):
     harness = build_memory_harness(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         embed_backend=ConstBackend(),
         reflect_fn=_reflect_fn({"key_insight": "k"}),
     )
@@ -326,7 +326,7 @@ def test_from_config_threads_freeze_retrieval(monkeypatch, tmp_path):
     seen = {}
     _patch_backends(monkeypatch, seen)
     harness = build_memory_harness_from_config(
-        FakeSolver(), tmp_path / "mem",
+        FakeInferenceClient(), tmp_path / "mem",
         base_url="http://localhost:8080/v1",
         embed_model="bge-m3", reflect_model="gemma",
         freeze_retrieval=True,

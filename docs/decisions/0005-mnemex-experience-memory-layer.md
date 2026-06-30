@@ -27,7 +27,7 @@ FinAcumen do we adopt, in what shape, and what do we call the result?
 - lm-repl owns the spatial axis; FM owns the temporal axis. They are orthogonal
   and composable, not competing.
 - FM's FT runtime is finance-coupled (FinancialDataLookup, OCR, 88KB planning,
-  77KB finance-extraction); lm-repl's RLM/SRLM engine already *is* the solver.
+  77KB finance-extraction); lm-repl's RLM/SRLM engine already *is* the inference client.
 - The shipped FM code diverges from its own ARCHITECTURE.md; we port what runs,
   not what is documented (verified by reading `finacumen/fm/*`):
   1. `retrieve.py` is a single-stage cosine matmul + id-dedup + top-k, NOT the
@@ -54,7 +54,7 @@ FinAcumen do we adopt, in what shape, and what do we call the result?
 ## Decision Outcome
 
 Chosen option: **port FM, drop FT, delegate solving to SRLM**. A new
-`lm_repl/memory/` package wraps any solver exposing the lm-repl
+`lm_repl/memory/` package wraps any inference client exposing the lm-repl
 `completion(prompt, root_prompt)` interface, mirroring FinAcumen's
 `MemoryAgentVariant` (Stage A retrieve / Stage B delegate solve / Stage C
 collect). `prompt` is the offloaded REPL context; `root_prompt` is the question
@@ -76,7 +76,7 @@ memory wrapper is transparent.
 ### Consequences
 
 - Good, because lm-repl gains cross-task learning without inheriting any
-  finance/benchmark baggage; the RLM engine stays the sole solver.
+  finance/benchmark baggage; the RLM engine stays the sole inference client.
 - Good, because FM's cross-verified positive (guiding-path) / negative
   (guard-rule) pairs are DPO-grade training data, feeding rlm-trainer, not just
   inference (see `project_lm-repl-downstream-consumers`).
@@ -95,14 +95,14 @@ memory wrapper is transparent.
 - Good, because it adopts the genuinely novel, near-domain-agnostic half and
   discards the part lm-repl already supersedes.
 - Good, because the integration seam (`MemoryAgentVariant` -> `SRLM.completion`)
-  is a near drop-in; the MVP proved it with an injected fake solver.
+  is a near drop-in; the MVP proved it with an injected fake inference client.
 - Bad, because the heaviest quality piece (distillation) must be redesigned, not
   copied.
 
 ### Port FinAcumen wholesale
 
 - Bad, because it drags in finance tools, OCR, and benchmark eval that lm-repl
-  has no use for, and two competing solver runtimes.
+  has no use for, and two competing inference runtimes.
 
 ### Build from scratch
 

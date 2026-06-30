@@ -182,25 +182,25 @@ class TestHarnessCore:
         assert "EXTRA" in h.srlm.system_prompt
         assert RLM_SYSTEM_PROMPT[:40] in h.srlm.system_prompt
 
-    def test_completion_delegates_to_solver(self):
+    def test_completion_delegates_to_inference_client(self):
         h = _h()
-        h.solver = type("S", (), {"completion": lambda self, c, q: f"{c}|{q}"})()
+        h.inference_client = type("S", (), {"completion": lambda self, c, q: f"{c}|{q}"})()
         assert h.completion("ctx", "qry") == "ctx|qry"
 
 
 class TestHarnessMemory:
-    def test_no_memory_solver_is_srlm(self):
+    def test_no_memory_inference_client_is_srlm(self):
         h = _h()
-        assert h.solver is h.srlm
+        assert h.inference_client is h.srlm
 
-    def test_memory_wraps_solver(self, tmp_path):
+    def test_memory_wraps_inference_client(self, tmp_path):
         h = _h(memory=MemoryConfig(
             bank_dir=str(tmp_path / "bank"),
             embed_model="bge-m3", reflect_model="m",
             embed_url="http://localhost:8084/v1",
         ))
-        assert isinstance(h.solver, MemoryHarness)
-        assert h.solver is not h.srlm
+        assert isinstance(h.inference_client, MemoryHarness)
+        assert h.inference_client is not h.srlm
 
     def test_memory_observer_flows_to_harness(self, tmp_path):
         # The eval reaches the memory layer only via Harness(memory=MemoryConfig);
@@ -214,7 +214,7 @@ class TestHarnessMemory:
             embed_url="http://localhost:8084/v1",
             observer=sentinel,
         ))
-        assert h.solver.observer is sentinel
+        assert h.inference_client.observer is sentinel
 
     def test_memory_freeze_retrieval_threads_to_harness(self, tmp_path):
         # The cold/warm eval drives the memory layer only via Harness(memory=...);
@@ -226,7 +226,7 @@ class TestHarnessMemory:
             embed_url="http://localhost:8084/v1",
             freeze_retrieval=True,
         ))
-        assert h.solver.freeze_retrieval is True
+        assert h.inference_client.freeze_retrieval is True
 
     def test_memory_freeze_retrieval_defaults_false(self, tmp_path):
         h = _h(memory=MemoryConfig(
@@ -234,7 +234,7 @@ class TestHarnessMemory:
             embed_model="bge-m3", reflect_model="m",
             embed_url="http://localhost:8084/v1",
         ))
-        assert h.solver.freeze_retrieval is False
+        assert h.inference_client.freeze_retrieval is False
 
     def test_memory_observer_defaults_to_none_field(self, tmp_path):
         # Default config carries no observer; MemoryHarness then installs its own
@@ -245,7 +245,7 @@ class TestHarnessMemory:
             embed_url="http://localhost:8084/v1",
         ))
         from prehend.memory.harness import NullObserver
-        assert isinstance(h.solver.observer, NullObserver)
+        assert isinstance(h.inference_client.observer, NullObserver)
 
 
 class TestHarnessPassthroughs:

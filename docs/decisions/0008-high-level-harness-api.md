@@ -19,7 +19,7 @@ approach and assemble all of this itself.
 The two real clients demonstrate the cost:
 
 - **rlm-trainer `benchmark.py`** hand-builds the ~20-arg `SRLM(...)` and a
-  bespoke `_maybe_wrap_memory(solver, params)` helper to wire the ADR-0005 memory
+  bespoke `_maybe_wrap_memory(inference_client, params)` helper to wire the ADR-0005 memory
   layer on top.
 - **kb-librarian `ask.py`** builds an even larger `SRLM(...)` and carries
   reliability knobs (`max_retries`, `stream`, `repeat_guard_threshold`,
@@ -110,7 +110,7 @@ When `memory=MemoryConfig(...)` is set, the Harness calls
 the SRLM. `MemoryHarness` keeps its ADR-0005 behavior unchanged but is demoted to
 an **internal building block** - clients no longer hand-wire it or call
 `_maybe_wrap_memory`. `_maybe_wrap_memory` is deleted from `benchmark.py`.
-The `MemoryHarness.completion` Solver adapter (commit `fee96ae`) is what makes
+The `MemoryHarness.completion` InferenceClient adapter (commit `fee96ae`) is what makes
 this composition clean.
 
 ### Tier C: optional hooks
@@ -119,7 +119,7 @@ All optional: `system_addendum` (str appended to the RLM system prompt),
 `subcall_verifier`, `answer_verifier`, `max_answer_retries`, `custom_tools`,
 `observability` (callable invoked with the constructed SRLM). The `observability`
 hook receives the raw SRLM inside the Harness, resolving the `observability.bind`
-/ `call_scope` caveat that previously required the client to hold the raw solver.
+/ `call_scope` caveat that previously required the client to hold the raw inference client.
 
 Advanced passthroughs forwarded verbatim when not `None`: `direct_threshold`,
 `n_candidates`, `candidate_temperature`, `candidate_parallel`,

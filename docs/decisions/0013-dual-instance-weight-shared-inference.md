@@ -4,7 +4,7 @@ date: "2026-06-23"
 deciders: "potto"
 ---
 
-# Dual-instance weight-shared solver: split orchestrator and sub-calls onto two processes sharing one weights copy
+# Dual-instance weight-shared inference: split orchestrator and sub-calls onto two processes sharing one weights copy
 
 ## Context and Problem Statement
 
@@ -106,5 +106,5 @@ iterative context draws from its OWN pool with no division.
   contract from [ADR-0009](0009-subcall-input-context-guard.md) /
   [ADR-0010](0010-auto-chunk-enforcement-for-oversized-subcalls.md) unchanged.
 - Library: `~/src/cuda-llm-weight-share` (LD_PRELOAD CUDA IPC weight sharing).
-- Design + plan: `docs/superpowers/specs/2026-06-23-dual-instance-weight-shared-solver-design.md`,
-  `docs/superpowers/plans/2026-06-23-dual-instance-weight-shared-solver.md`.
+- Design + plan: `docs/superpowers/specs/2026-06-23-dual-instance-weight-shared-inference-design.md`,
+  `docs/superpowers/plans/2026-06-23-dual-instance-weight-shared-inference.md`.

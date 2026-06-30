@@ -1,6 +1,6 @@
 """Dynamic-KV-pool engines (sglang) bypass the per-slot sub-call division.
 
-ADR-0015 migrates the served solver from the llama.cpp dual-context fork to
+ADR-0015 migrates the served inference server from the llama.cpp dual-context fork to
 SGLang: ONE engine serves both orchestrator and worker roles via continuous
 batching + RadixAttention. SGLang's KV is a single PAGED pool the radix tree
 draws from per-token and LRU-evicts under pressure - it does NOT 500 on

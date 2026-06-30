@@ -9,7 +9,7 @@ consulted: "debugging session (sglang prefix-cache root-cause)"
 
 ## Context and Problem Statement
 
-The served solver ([ADR-0016](0016-sglang-as-served-solver.md), SGLang on `:8080`)
+The served inference ([ADR-0016](0016-sglang-as-served-inference.md), SGLang on `:8080`)
 reuses a request's leading tokens via RadixAttention/prefix caching: a new
 request that shares a byte-identical PREFIX with a cached one re-prefills only
 the diverging suffix. The RLM multihop workload re-queries the SAME large context
@@ -58,7 +58,7 @@ whole chunk.
   collapse the ~6.4x re-prefill toward ~1x on the multihop workload, on the
   throughput-safe hybrid pool (cuda-graph capture works at a real `cuda-graph-max-bs`).
 - **Risk / validation pending:** this is a prompt-FORMAT change to the trained
-  Gnosis solver (instruction position moved). Correctness is gated on a GATE #2
+  Gnosis model (instruction position moved). Correctness is gated on a GATE #2
   accuracy A/B (data-first vs instruction-first) on plain-multihop tasks; the
   layout is only "done" once reuse is measured UP and accuracy is measured NEUTRAL.
   Until then this ADR is accepted on the root-cause reasoning (instruction-first

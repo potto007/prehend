@@ -10,7 +10,7 @@ consulted: "debugging session (multihop chaining root-cause + live A/B)"
 ## Context and Problem Statement
 
 The map-reduce seam ([ADR-0010](0010-auto-chunk-enforcement-for-oversized-subcalls.md), driven through
-the served solver [ADR-0016](0016-sglang-as-served-solver.md)) splits an oversized
+the served inference [ADR-0016](0016-sglang-as-served-inference.md)) splits an oversized
 `context=` blob into chunks, runs a per-chunk MAP, and tree-REDUCEs the partials.
 The MAP instruction was the USER QUERY (plus the no-info sentinel directive,
 [`_MAP_SENTINEL_DIRECTIVE`](../../prehend/utils/mapreduce.py)): each chunk was

@@ -246,8 +246,8 @@ git commit -m "feat(harness): hybrid detect_runtime with safe-fallback (None on 
 - Consumes: `Defaults`/`VETTED`, `Runtime`, `detect_runtime` (Tasks 1-2); `prehend.core.srlm.SRLM`.
 - Produces:
   - `Harness(model: str, base_url: str, *, api_key: str = "not-needed", timeout: float | None = None, runtime: Runtime | str = "auto", defaults: Defaults | None = None, system_addendum: str | None = None, subcall_verifier=None, answer_verifier=None, max_answer_retries: int | None = None, custom_tools: dict | None = None, observability: Callable[[object], None] | None = None, logger=None, memory: "MemoryConfig | None" = None)`. (Task 4 adds `memory` behavior; this task wires everything except memory.)
-  - `Harness.completion(context: str, query: str) -> str` -- delegates to the solver.
-  - Attributes for tests: `harness.srlm` (raw SRLM), `harness.runtime` (resolved `Runtime`), `harness.solver` (== srlm until Task 4 adds memory wrapping).
+  - `Harness.completion(context: str, query: str) -> str` -- delegates to the inference_client.
+  - Attributes for tests: `harness.srlm` (raw SRLM), `harness.runtime` (resolved `Runtime`), `harness.inference_client` (== srlm until Task 4 adds memory wrapping).
 
 **Resolution rules:**
 - `runtime="auto"` -> `detect_runtime(base_url)`; if `None`, fall back to `Runtime(slots=defaults.max_concurrent_subcalls)` and log one line via `prehend.logger`.
@@ -298,9 +298,9 @@ class TestHarnessCore:
         assert h.srlm.custom_tools == sentinel_tools
         assert seen["srlm"] is h.srlm            # observability hook ran with raw SRLM
 
-    def test_completion_delegates_to_solver(self):
+    def test_completion_delegates_to_inference_client(self):
         h = _h()
-        h.solver = type("S", (), {"completion": lambda self, c, q: f"{c}|{q}"})()
+        h.inference_client = type("S", (), {"completion": lambda self, c, q: f"{c}|{q}"})()
         assert h.completion("ctx", "qry") == "ctx|qry"
 ```
 
@@ -380,7 +380,7 @@ class Harness:
         self.srlm = SRLM(**srlm_kwargs)
         if observability is not None:
             observability(self.srlm)
-        self.solver = self.srlm     # Task 4 may wrap this
+        self.inference_client = self.srlm     # Task 4 may wrap this
 
     def _resolve_runtime(self, runtime, base_url, api_key, d: Defaults) -> Runtime:
         if isinstance(runtime, Runtime):
@@ -393,7 +393,7 @@ class Harness:
         return Runtime(slots=d.max_concurrent_subcalls)
 
     def completion(self, context: str, query: str) -> str:
-        return self.solver.completion(context, query)
+        return self.inference_client.completion(context, query)
 ```
 
 NOTE for implementer: `SRLM` accepts `custom_system_prompt` (it forwards
@@ -428,7 +428,7 @@ git commit -m "feat(harness): Harness core - build SRLM from defaults+runtime+ho
 
 **Interfaces:**
 - Consumes: `MemoryConfig` (Task 1); `Harness` (Task 3); `prehend.memory.factory.build_memory_harness_from_config`; `prehend.memory.harness.MemoryHarness`.
-- Produces: when `memory` is set, `harness.solver` is a `MemoryHarness` wrapping the SRLM; when `None`, `harness.solver is harness.srlm` (unchanged).
+- Produces: when `memory` is set, `harness.inference_client` is a `MemoryHarness` wrapping the SRLM; when `None`, `harness.inference_client is harness.srlm` (unchanged).
 
 **Mapping:** `MemoryConfig` -> `build_memory_harness_from_config(self.srlm, bank_dir=mc.bank_dir, base_url=base_url, embed_model=mc.embed_model, reflect_model=mc.reflect_model, api_key=api_key, embed_base_url=mc.embed_url, embed_api_key=mc.embed_api_key, **{k: v for k, v in [("k_max", mc.k_max), ("min_cosine", mc.min_cosine)] if v is not None})`. (Omitting `k_max`/`min_cosine` when `None` preserves prehend's defaults, matching benchmark's `_maybe_wrap_memory`.)
 
@@ -441,36 +441,36 @@ from prehend.memory.harness import MemoryHarness
 
 
 class TestHarnessMemory:
-    def test_no_memory_solver_is_srlm(self):
+    def test_no_memory_inference_client_is_srlm(self):
         h = _h()
-        assert h.solver is h.srlm
+        assert h.inference_client is h.srlm
 
-    def test_memory_wraps_solver(self, tmp_path):
+    def test_memory_wraps_inference_client(self, tmp_path):
         h = _h(memory=MemoryConfig(
             bank_dir=str(tmp_path / "bank"),
             embed_model="bge-m3", reflect_model="m",
             embed_url="http://localhost:8084/v1",
         ))
-        assert isinstance(h.solver, MemoryHarness)
-        assert h.solver is not h.srlm
+        assert isinstance(h.inference_client, MemoryHarness)
+        assert h.inference_client is not h.srlm
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `~/.local/bin/uv run python -m pytest tests/test_harness.py::TestHarnessMemory -q`
-Expected: FAIL on `test_memory_wraps_solver` (solver is the SRLM, not a MemoryHarness)
+Expected: FAIL on `test_memory_wraps_inference_client` (inference_client is the SRLM, not a MemoryHarness)
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `Harness.__init__`, store `self._base_url = base_url` and `self._api_key = api_key`, then replace `self.solver = self.srlm` with:
+In `Harness.__init__`, store `self._base_url = base_url` and `self._api_key = api_key`, then replace `self.inference_client = self.srlm` with:
 
 ```python
-        self.solver = self.srlm
+        self.inference_client = self.srlm
         if memory is not None:
             from prehend.memory.factory import build_memory_harness_from_config
             tight = {k: v for k, v in (("k_max", memory.k_max),
                                        ("min_cosine", memory.min_cosine)) if v is not None}
-            self.solver = build_memory_harness_from_config(
+            self.inference_client = build_memory_harness_from_config(
                 self.srlm,
                 bank_dir=memory.bank_dir,
                 base_url=base_url,
@@ -647,7 +647,7 @@ Expected: PASS (record the counts).
 - [ ] **Step 2: Replace the SRLM construction + memory wrap with Harness (forwarding the advanced knobs)**
 
 In `_run_one_task`, replace the whole `srlm = SRLM(...)` block and
-`solver = _maybe_wrap_memory(srlm, params)` with:
+`inference_client = _maybe_wrap_memory(srlm, params)` with:
 
 ```python
     mem = None
@@ -681,10 +681,10 @@ In `_run_one_task`, replace the whole `srlm = SRLM(...)` block and
         scheduler_max_concurrent=params.get("scheduler_max_concurrent"),
         scheduler_coordination_dir=params.get("scheduler_coordination_dir"),
     )
-    solver = harness
+    inference_client = harness
     start = time.time()
     try:
-        response = solver.completion(task["context"], task["query"])
+        response = inference_client.completion(task["context"], task["query"])
 ```
 
 Delete the `_maybe_wrap_memory` function and the now-unused `SRLM` import if no
@@ -793,7 +793,7 @@ is conditional and explicitly gated on "only if a real run needs it"; the defaul
 path omits it.
 
 **Type consistency:** `Harness`, `Runtime`, `MemoryConfig`, `Defaults`, `VETTED`,
-`detect_runtime`, `Harness.srlm/.solver/.runtime/.completion` are used identically
+`detect_runtime`, `Harness.srlm/.inference_client/.runtime/.completion` are used identically
 across Tasks 1-6. `build_memory_harness_from_config` kwargs match its real
 signature (verified). `max_concurrent_subcalls`, `subcall_verifier`,
 `answer_verifier`, `max_answer_retries`, `custom_tools`, `custom_system_prompt`

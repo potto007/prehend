@@ -5,11 +5,11 @@ deciders: "potto"
 supersedes: "0013"
 ---
 
-# Single-process dual-context solver: share weights via one llama_model backing two llama_context (supersedes the WSL2-impossible CUDA-IPC weight-share)
+# Single-process dual-context inference: share weights via one llama_model backing two llama_context (supersedes the WSL2-impossible CUDA-IPC weight-share)
 
 ## Context and Problem Statement
 
-[ADR-0013](0013-dual-instance-weight-shared-solver.md) split the solver into an
+[ADR-0013](0013-dual-instance-weight-shared-inference.md) split the inference server into an
 orchestrator and a sub-call worker as TWO OS processes sharing one VRAM weights
 copy via CUDA IPC (`cuda-llm-weight-share`, LD_PRELOAD). The goal stands - give
 each role a PRIVATE KV pool and prefix cache so sub-call bursts cannot contend
@@ -96,7 +96,7 @@ backend sets `enable_thinking=false`), not a server-level difference.
 
 ## More Information
 
-- Supersedes [ADR-0013](0013-dual-instance-weight-shared-solver.md); builds on
+- Supersedes [ADR-0013](0013-dual-instance-weight-shared-inference.md); builds on
   [ADR-0012](0012-pool-aware-subcall-budget-under-kv-unified.md) (the per-call
   budget guard stays as defense-in-depth) and the
   [ADR-0008](0008-high-level-harness-api.md) Harness seam.

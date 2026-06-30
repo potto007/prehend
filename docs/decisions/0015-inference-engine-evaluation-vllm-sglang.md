@@ -8,14 +8,14 @@ consulted: "research agents (vLLM, SGLang)"
 > **Resolved (2026-06-26):** the spike ran vLLM-first and vLLM 0.23.0 PASSED
 > Gate #1 (load + decode, TRITON_ATTN auto-selected, fp8 KV = 676k tokens /
 > 20.65x concurrency) and Gate #2 (the previously-timing-out plain-multihop tasks
-> now COMPLETE). Ratified and made production by [ADR-0021](0021-vllm-as-served-solver.md),
+> now COMPLETE). Ratified and made production by [ADR-0021](0021-vllm-as-served-inference.md),
 > which supersedes ADR-0013/0014 and ADR-0016.
 
 # Inference-engine evaluation: spike vLLM and SGLang as single-engine replacements for the dual-context llama.cpp fork
 
 ## Context and Problem Statement
 
-[ADR-0014](0014-single-process-dual-context-solver.md) built
+[ADR-0014](0014-single-process-dual-context-inference.md) built
 `llama-dual-context-server` in the `potto007/llama.cpp` fork: one `llama_model`
 backing two `llama_context` (orchestrator on `:8080`, worker on `:8081`), each
 with a PRIVATE KV pool and prompt cache. That eliminated the
@@ -41,12 +41,12 @@ Empirically settled 2026-06-23 on the RTX 5090 (32GB), CUDA 13, v13 model
 Naming clarification (load-bearing for the whole evaluation): "gemma-4-12B-it"
 and "gemma-4-E4B" are REAL Google Gemma 4 models (the family shipped ~early
 2026; the 12B encoder-free "Unified" variant only ~2026-06-03), not internal
-prehend shorthand. The solver is the bleeding-edge 12B unified arch
+prehend shorthand. The Gnosis model is the bleeding-edge 12B unified arch
 (`Gemma4UnifiedForConditionalGeneration`); the distiller `gemma-4-E4B` is a
 different, second model (PLE / MatFormer lineage).
 
 Question: should prehend keep the custom dual-context llama.cpp fork, or migrate
-the served solver to a single-engine inference server (vLLM or SGLang) whose
+the served model to a single-engine inference server (vLLM or SGLang) whose
 continuous batching co-batches orchestrator and worker in ONE scheduler and
 dissolves both the co-batching loss AND the per-slot KV budgeting?
 
@@ -73,9 +73,9 @@ dissolves both the co-batching loss AND the per-slot KV budgeting?
 ## Considered Options
 
 1. **Keep the dual-context llama.cpp fork** (status quo, ADR-0014).
-2. **Migrate the solver to vLLM** (single engine: continuous batching +
+2. **Migrate the inference to vLLM** (single engine: continuous batching +
    PagedAttention + Automatic Prefix Caching + Hybrid KV Cache Manager).
-3. **Migrate the solver to SGLang** (single engine: RadixAttention auto-prefix
+3. **Migrate the inference to SGLang** (single engine: RadixAttention auto-prefix
    dedup + continuous batching, single scheduler).
 
 ## Decision Outcome
@@ -107,8 +107,8 @@ many-shared-prefix fit (RadixAttention auto-dedupes exactly the
 orchestrator-prefix + shared-sub-call pattern; up to ~6.4x on shared-prefix
 workloads), with vLLM as the fallback. **See the update below - this lean has
 since flipped to vLLM-first.** A passing spike should be ratified by a FOLLOW-UP
-ADR that supersedes [ADR-0013](0013-dual-instance-weight-shared-solver.md) and
-[ADR-0014](0014-single-process-dual-context-solver.md).
+ADR that supersedes [ADR-0013](0013-dual-instance-weight-shared-inference.md) and
+[ADR-0014](0014-single-process-dual-context-inference.md).
 
 ### Update (2026-06-26): lean flipped to vLLM-first
 
@@ -144,7 +144,7 @@ Gate #1 on this box.
   SAME engine (CoT on/off and mixed `max_tokens` are per-request knobs, not two
   servers), and NO `subcall_context_limit` / `per_call_subcall_budget` slot math
   (the paged or radix pool divides dynamically per token).
-- Good, because not ripping out llama.cpp keeps a known-working solver while we
+- Good, because not ripping out llama.cpp keeps a known-working inference path while we
   de-risk; the fork stays the fallback if both gates fail.
 - Bad, because both engines require re-quantizing off the existing Q4_0 GGUF to
   AWQ INT4 (a one-time calibration job, plus re-validating SFT quality at INT4);
@@ -156,7 +156,7 @@ Gate #1 on this box.
   neither engine runs two different models in one process on one GPU; it becomes
   a second/on-demand process (start for distillation, stop to free VRAM). This is
   acceptable - the distiller is offline, out of the hot RLM loop - but it must be
-  VRAM-tuned against the solver process on the 32GB card.
+  VRAM-tuned against the inference server process on the 32GB card.
 - Bad, because the spike costs 1-2 days and may conclude "stay on the fork" if
   consumer-Blackwell maturity (SM_120) or the 12B-unified bug blocks both engines.
 - Neutral: WSL2 caps throughput at ~70% of native Linux; vLLM CUDA graphs need
@@ -185,7 +185,7 @@ Gate #1 on this box.
 - Bad, because the per-slot KV budgeting (ADR-0009/0012) stays as required
   machinery rather than being dissolved by a paged pool.
 
-### Option 2 - Migrate the solver to vLLM
+### Option 2 - Migrate the inference to vLLM
 
 - Good, because single-engine continuous batching + PagedAttention co-batches
   orchestrator and worker in ONE scheduler - directly dissolving the 37% loss the
@@ -209,7 +209,7 @@ Gate #1 on this box.
   not in any stable release) with an OPEN shape-mismatch bug (#44494,
   `mat1/mat2 ... 2048x4096 and 8192x3840` during memory profiling) and a
   `transformers>=5.5` vs vLLM pin conflict (#39216). This can block the primary
-  solver model outright today.
+  Gnosis model outright today.
 - Bad, because migrating now stacks bleeding-edge model support on a
   bleeding-edge Blackwell/WSL2 path - fragile, likely carrying patches.
 - Bad, because GGUF is "highly experimental"/under-optimized and slow in vLLM;
@@ -220,7 +220,7 @@ Gate #1 on this box.
 - Bad, because speculative decoding must stay OFF: Gemma 4 + hybrid attention +
   DFlash spec-decoding gives 0% prefix-cache hits (#40624, open).
 
-### Option 3 - Migrate the solver to SGLang
+### Option 3 - Migrate the inference to SGLang
 
 - Good, because RadixAttention auto-dedupes the shared-prefix RLM pattern via a
   radix tree (longest-prefix match, automatic cross-request, LRU eviction) -
@@ -291,8 +291,8 @@ Python**. Captured here so it is not re-derived later.
 ## More Information
 
 - Relates to and (on a passing spike) would supersede
-  [ADR-0014](0014-single-process-dual-context-solver.md) and
-  [ADR-0013](0013-dual-instance-weight-shared-solver.md); builds on
+  [ADR-0014](0014-single-process-dual-context-inference.md) and
+  [ADR-0013](0013-dual-instance-weight-shared-inference.md); builds on
   [ADR-0012](0012-pool-aware-subcall-budget-under-kv-unified.md) (the per-call
   budget guard and `subcall_context_limit` would be removed, not just bypassed,
   once a paged/radix engine owns KV).

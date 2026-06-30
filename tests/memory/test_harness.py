@@ -7,7 +7,7 @@ from prehend.memory.bank import Bank
 from prehend.memory.harness import MemoryHarness
 
 
-class FakeSolver:
+class FakeInferenceClient:
     """Records the (prompt, root_prompt) it was called with."""
 
     def __init__(self, answer="42"):
@@ -42,10 +42,10 @@ def _entry(eid, embedding):
 
 def test_no_memory_path_keeps_root_prompt_byte_identical(tmp_path):
     bank = Bank(tmp_path / "mem")  # empty
-    solver = FakeSolver()
-    harness = MemoryHarness(solver, bank, FakeBackend())
+    inference_client = FakeInferenceClient()
+    harness = MemoryHarness(inference_client, bank, FakeBackend())
     harness.answer(context="ctx", question="What is 6*7?")
-    prompt, root_prompt = solver.calls[0]
+    prompt, root_prompt = inference_client.calls[0]
     assert prompt == "ctx"
     assert root_prompt == "What is 6*7?"  # no memory tokens leaked in
 
@@ -53,19 +53,19 @@ def test_no_memory_path_keeps_root_prompt_byte_identical(tmp_path):
 def test_with_memory_injects_block_into_root_prompt(tmp_path):
     bank = Bank(tmp_path / "mem")
     bank.append(_entry("a", [1.0, 0.0]))
-    solver = FakeSolver()
-    harness = MemoryHarness(solver, bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5)
+    inference_client = FakeInferenceClient()
+    harness = MemoryHarness(inference_client, bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5)
     harness.answer(context="ctx", question="Q")
-    _, root_prompt = solver.calls[0]
+    _, root_prompt = inference_client.calls[0]
     assert "<Memory_Block>" in root_prompt
     assert "insight a" in root_prompt
     assert root_prompt.rstrip().endswith("Q")
 
 
-def test_returns_solver_result(tmp_path):
+def test_returns_inference_client_result(tmp_path):
     bank = Bank(tmp_path / "mem")
-    solver = FakeSolver(answer="hello")
-    harness = MemoryHarness(solver, bank, FakeBackend())
+    inference_client = FakeInferenceClient(answer="hello")
+    harness = MemoryHarness(inference_client, bank, FakeBackend())
     result = harness.answer(context="ctx", question="q")
     assert result.final_answer == "hello"
 
@@ -73,7 +73,7 @@ def test_returns_solver_result(tmp_path):
 def test_retrieval_bumps_use_count(tmp_path):
     bank = Bank(tmp_path / "mem")
     bank.append(_entry("a", [1.0, 0.0]))
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5)
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5)
     harness.answer(context="ctx", question="Q")
     assert bank.load()[0]["stats"]["use_count"] == 1
 
@@ -81,11 +81,11 @@ def test_retrieval_bumps_use_count(tmp_path):
 def test_embedding_failure_degrades_to_no_memory(tmp_path):
     bank = Bank(tmp_path / "mem")
     bank.append(_entry("a", [1.0, 0.0]))
-    solver = FakeSolver()
-    harness = MemoryHarness(solver, bank, FakeBackend(raises=True), min_cosine=0.5)
+    inference_client = FakeInferenceClient()
+    harness = MemoryHarness(inference_client, bank, FakeBackend(raises=True), min_cosine=0.5)
     # Must not raise; solve still happens with a clean root_prompt.
     harness.answer(context="ctx", question="Q")
-    _, root_prompt = solver.calls[0]
+    _, root_prompt = inference_client.calls[0]
     assert root_prompt == "Q"
 
 
@@ -95,14 +95,14 @@ def test_collect_appends_distilled_entry(tmp_path):
     def distiller(question, context, result):
         return _entry("learned", [0.5, 0.5])
 
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(), distiller=distiller)
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), distiller=distiller)
     harness.answer(context="ctx", question="q")
     assert [e["id"] for e in bank.load()] == ["learned"]
 
 
 def test_collect_none_writes_nothing(tmp_path):
     bank = Bank(tmp_path / "mem")
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(),
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(),
                             distiller=lambda q, c, r: None)
     harness.answer(context="ctx", question="q")
     assert bank.load() == []
@@ -116,7 +116,7 @@ def test_defer_collect_does_not_distill_in_answer(tmp_path):
     # With defer_collect, answer() solves but does NOT write an experience -
     # the caller decides later (once it knows correctness) via collect_pending.
     bank = Bank(tmp_path / "mem")
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(),
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(),
                             distiller=_learn_distiller, defer_collect=True)
     harness.answer(context="ctx", question="q")
     assert bank.load() == []  # nothing distilled yet
@@ -124,7 +124,7 @@ def test_defer_collect_does_not_distill_in_answer(tmp_path):
 
 def test_collect_pending_correct_distills(tmp_path):
     bank = Bank(tmp_path / "mem")
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(),
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(),
                             distiller=_learn_distiller, defer_collect=True)
     harness.answer(context="ctx", question="q")
     harness.collect_pending(correct=True)
@@ -134,7 +134,7 @@ def test_collect_pending_correct_distills(tmp_path):
 def test_collect_pending_wrong_skips_distillation(tmp_path):
     # The whole point of #1: do NOT learn from a wrong solve.
     bank = Bank(tmp_path / "mem")
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(),
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(),
                             distiller=_learn_distiller, defer_collect=True)
     harness.answer(context="ctx", question="q")
     harness.collect_pending(correct=False)
@@ -144,7 +144,7 @@ def test_collect_pending_wrong_skips_distillation(tmp_path):
 def test_collect_pending_unknown_correctness_distills(tmp_path):
     # correct=None (no expected answer / unscored) -> conservatively keep it.
     bank = Bank(tmp_path / "mem")
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(),
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(),
                             distiller=_learn_distiller, defer_collect=True)
     harness.answer(context="ctx", question="q")
     harness.collect_pending(correct=None)
@@ -153,7 +153,7 @@ def test_collect_pending_unknown_correctness_distills(tmp_path):
 
 def test_collect_pending_is_noop_without_pending(tmp_path):
     bank = Bank(tmp_path / "mem")
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(),
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(),
                             distiller=_learn_distiller, defer_collect=True)
     harness.collect_pending(correct=True)  # nothing solved yet
     assert bank.load() == []
@@ -163,7 +163,7 @@ def test_collect_skips_entry_whose_id_already_exists(tmp_path):
     bank = Bank(tmp_path / "mem")
     bank.append(_entry("dup", [0.1, 0.2]))  # id 'dup' already present
 
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(),
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(),
                             distiller=lambda q, c, r: _entry("dup", [0.3, 0.4]))
     harness.answer(context="ctx", question="q")
     # Still exactly one 'dup' entry; collect must not append a duplicate id.
@@ -183,20 +183,20 @@ def test_tagger_gates_retrieval_by_conflicting_tag(tmp_path):
     e = _entry("a", [1.0, 0.0])
     e["tags"] = {"kind": "numeric"}
     bank.append(e)
-    solver = FakeSolver()
+    inference_client = FakeInferenceClient()
     harness = MemoryHarness(
-        solver, bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5,
+        inference_client, bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5,
         tagger=FakeTagger({"kind": "entity"}),
     )
     harness.answer(context="ctx", question="Q")
-    _, root_prompt = solver.calls[0]
+    _, root_prompt = inference_client.calls[0]
     assert root_prompt == "Q"  # conflicting tag gated the entry out -> no memory
 
 
 def test_collect_tags_entry_using_tagger(tmp_path):
     bank = Bank(tmp_path / "mem")
     harness = MemoryHarness(
-        FakeSolver(), bank, FakeBackend(),
+        FakeInferenceClient(), bank, FakeBackend(),
         tagger=FakeTagger({"kind": "numeric"}),
         distiller=lambda q, c, r: _entry("learned", [0.1, 0.2]),
     )
@@ -210,23 +210,23 @@ def test_collect_failure_never_breaks_answer(tmp_path):
     def boom(question, context, result):
         raise RuntimeError("distiller blew up")
 
-    solver = FakeSolver(answer="ok")
-    harness = MemoryHarness(solver, bank, FakeBackend(), distiller=boom)
+    inference_client = FakeInferenceClient(answer="ok")
+    harness = MemoryHarness(inference_client, bank, FakeBackend(), distiller=boom)
     result = harness.answer(context="ctx", question="q")
     assert result.final_answer == "ok"
 
 
-# --- completion() as a transparent Solver adapter (step 1) -------------------
+# --- completion() as a transparent InferenceClient adapter (step 1) -------------------
 
 def test_completion_is_drop_in_for_answer(tmp_path):
-    # A memory-wrapped solver invoked via .completion(context, query) must drive
-    # the inner solver identically to .answer(context, query).
+    # A memory-wrapped inference client invoked via .completion(context, query) must drive
+    # the inner inference client identically to .answer(context, query).
     bank = Bank(tmp_path / "mem")
     bank.append(_entry("a", [1.0, 0.0]))
-    solver = FakeSolver()
-    harness = MemoryHarness(solver, bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5)
+    inference_client = FakeInferenceClient()
+    harness = MemoryHarness(inference_client, bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5)
     harness.completion("ctx", "Q")
-    prompt, root_prompt = solver.calls[0]
+    prompt, root_prompt = inference_client.calls[0]
     assert prompt == "ctx"
     assert "<Memory_Block>" in root_prompt
     assert "insight a" in root_prompt
@@ -236,18 +236,18 @@ def test_completion_is_drop_in_for_answer(tmp_path):
 def test_completion_no_memory_path_keeps_root_prompt_byte_identical(tmp_path):
     # No-memory invariant holds through the completion() seam too.
     bank = Bank(tmp_path / "mem")  # empty
-    solver = FakeSolver()
-    harness = MemoryHarness(solver, bank, FakeBackend())
+    inference_client = FakeInferenceClient()
+    harness = MemoryHarness(inference_client, bank, FakeBackend())
     harness.completion("ctx", "What is 6*7?")
-    prompt, root_prompt = solver.calls[0]
+    prompt, root_prompt = inference_client.calls[0]
     assert prompt == "ctx"
     assert root_prompt == "What is 6*7?"
 
 
-def test_completion_returns_solver_result(tmp_path):
+def test_completion_returns_inference_client_result(tmp_path):
     bank = Bank(tmp_path / "mem")
-    solver = FakeSolver(answer="hello")
-    harness = MemoryHarness(solver, bank, FakeBackend())
+    inference_client = FakeInferenceClient(answer="hello")
+    harness = MemoryHarness(inference_client, bank, FakeBackend())
     result = harness.completion("ctx", "q")
     assert result.final_answer == "hello"
 
@@ -255,10 +255,10 @@ def test_completion_returns_solver_result(tmp_path):
 def test_completion_defaults_root_prompt_to_prompt(tmp_path):
     # Single-arg completion(prompt): prompt doubles as the question.
     bank = Bank(tmp_path / "mem")  # empty
-    solver = FakeSolver()
-    harness = MemoryHarness(solver, bank, FakeBackend())
+    inference_client = FakeInferenceClient()
+    harness = MemoryHarness(inference_client, bank, FakeBackend())
     harness.completion("only the prompt")
-    prompt, root_prompt = solver.calls[0]
+    prompt, root_prompt = inference_client.calls[0]
     assert prompt == "only the prompt"
     assert root_prompt == "only the prompt"
 
@@ -284,7 +284,7 @@ def test_observer_records_hit(tmp_path):
     bank.append(_entry("a", [1.0, 0.0]))
     obs = RecordingObserver()
     harness = MemoryHarness(
-        FakeSolver(), bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5,
+        FakeInferenceClient(), bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5,
         observer=obs,
     )
     harness.answer(context="ctx", question="Q")
@@ -297,7 +297,7 @@ def test_observer_records_hit(tmp_path):
 def test_observer_records_miss(tmp_path):
     bank = Bank(tmp_path / "mem")  # empty
     obs = RecordingObserver()
-    harness = MemoryHarness(FakeSolver(), bank, FakeBackend(), observer=obs)
+    harness = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), observer=obs)
     harness.answer(context="ctx", question="q")
     (ev,) = obs.retrieves
     assert ev["entries"] == 0 and ev["error"] is False
@@ -309,7 +309,7 @@ def test_observer_records_retrieval_error(tmp_path):
     bank.append(_entry("a", [1.0, 0.0]))
     obs = RecordingObserver()
     harness = MemoryHarness(
-        FakeSolver(), bank, FakeBackend(raises=True), min_cosine=0.5, observer=obs,
+        FakeInferenceClient(), bank, FakeBackend(raises=True), min_cosine=0.5, observer=obs,
     )
     harness.answer(context="ctx", question="Q")  # must not raise
     (ev,) = obs.retrieves
@@ -320,7 +320,7 @@ def test_observer_records_written_collect(tmp_path):
     bank = Bank(tmp_path / "mem")
     obs = RecordingObserver()
     harness = MemoryHarness(
-        FakeSolver(), bank, FakeBackend(),
+        FakeInferenceClient(), bank, FakeBackend(),
         distiller=lambda q, c, r: _entry("learned", [0.5, 0.5]), observer=obs,
     )
     harness.answer(context="ctx", question="q")
@@ -332,7 +332,7 @@ def test_observer_records_empty_collect(tmp_path):
     bank = Bank(tmp_path / "mem")
     obs = RecordingObserver()
     harness = MemoryHarness(
-        FakeSolver(), bank, FakeBackend(),
+        FakeInferenceClient(), bank, FakeBackend(),
         distiller=lambda q, c, r: None, observer=obs,
     )
     harness.answer(context="ctx", question="q")
@@ -345,7 +345,7 @@ def test_observer_records_duplicate_collect(tmp_path):
     bank.append(_entry("dup", [0.1, 0.2]))
     obs = RecordingObserver()
     harness = MemoryHarness(
-        FakeSolver(), bank, FakeBackend(),
+        FakeInferenceClient(), bank, FakeBackend(),
         distiller=lambda q, c, r: _entry("dup", [0.3, 0.4]), observer=obs,
     )
     harness.answer(context="ctx", question="q")
@@ -357,7 +357,7 @@ def test_observer_records_deferred_then_dropped(tmp_path):
     bank = Bank(tmp_path / "mem")
     obs = RecordingObserver()
     harness = MemoryHarness(
-        FakeSolver(), bank, FakeBackend(),
+        FakeInferenceClient(), bank, FakeBackend(),
         distiller=_learn_distiller, defer_collect=True, observer=obs,
     )
     harness.answer(context="ctx", question="q")
@@ -369,7 +369,7 @@ def test_observer_records_deferred_then_written(tmp_path):
     bank = Bank(tmp_path / "mem")
     obs = RecordingObserver()
     harness = MemoryHarness(
-        FakeSolver(), bank, FakeBackend(),
+        FakeInferenceClient(), bank, FakeBackend(),
         distiller=_learn_distiller, defer_collect=True, observer=obs,
     )
     harness.answer(context="ctx", question="q")
@@ -386,9 +386,9 @@ def test_observer_exception_never_breaks_answer(tmp_path):
             raise RuntimeError("observer down")
 
     bank = Bank(tmp_path / "mem")
-    solver = FakeSolver(answer="ok")
+    inference_client = FakeInferenceClient(answer="ok")
     harness = MemoryHarness(
-        solver, bank, FakeBackend(),
+        inference_client, bank, FakeBackend(),
         distiller=lambda q, c, r: _entry("x", [0.1, 0.2]), observer=Boom(),
     )
     result = harness.answer(context="ctx", question="q")
@@ -417,14 +417,14 @@ def _mk_distiller(*, derived_from="success", eid="learned", polarity=None, embed
 
 
 def test_learn_from_failure_defaults_false(tmp_path):
-    h = MemoryHarness(FakeSolver(), Bank(tmp_path / "m"), FakeBackend())
+    h = MemoryHarness(FakeInferenceClient(), Bank(tmp_path / "m"), FakeBackend())
     assert h.learn_from_failure is False
 
 
 def test_collect_pending_false_with_flag_distills_failure(tmp_path):
     bank = Bank(tmp_path / "m")
     d = _mk_distiller(derived_from="failure", eid="f")
-    h = MemoryHarness(FakeSolver(), bank, FakeBackend(), distiller=d,
+    h = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), distiller=d,
                       defer_collect=True, learn_from_failure=True)
     h.answer(context="c", question="q")
     h.collect_pending(correct=False)
@@ -437,7 +437,7 @@ def test_collect_pending_false_with_flag_distills_failure(tmp_path):
 def test_collect_pending_false_without_flag_drops(tmp_path):
     bank = Bank(tmp_path / "m")
     d = _mk_distiller(eid="f")
-    h = MemoryHarness(FakeSolver(), bank, FakeBackend(), distiller=d,
+    h = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), distiller=d,
                       defer_collect=True)  # learn_from_failure default False
     h.answer(context="c", question="q")
     h.collect_pending(correct=False)
@@ -448,7 +448,7 @@ def test_collect_pending_false_without_flag_drops(tmp_path):
 def test_non_deferred_collect_defaults_failed_false(tmp_path):
     bank = Bank(tmp_path / "m")
     d = _mk_distiller(eid="x")
-    h = MemoryHarness(FakeSolver(), bank, FakeBackend(), distiller=d)  # not deferred
+    h = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), distiller=d)  # not deferred
     h.answer(context="c", question="q")
     assert d.calls == [False]
     assert [e["id"] for e in bank.load()] == ["x"]
@@ -459,14 +459,14 @@ def test_non_deferred_collect_defaults_failed_false(tmp_path):
 def test_wrong_then_right_success_supersedes_failure(tmp_path):
     bank = Bank(tmp_path / "m")
     fail = _mk_distiller(derived_from="failure", eid="exp_q")
-    h1 = MemoryHarness(FakeSolver(), bank, FakeBackend(), distiller=fail,
+    h1 = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), distiller=fail,
                        defer_collect=True, learn_from_failure=True)
     h1.answer(context="c", question="q")
     h1.collect_pending(correct=False)
     assert [(e["id"], e["derived_from"]) for e in bank.load()] == [("exp_q", "failure")]
 
     succ = _mk_distiller(derived_from="success", eid="exp_q")
-    h2 = MemoryHarness(FakeSolver(), bank, FakeBackend(), distiller=succ,
+    h2 = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), distiller=succ,
                        defer_collect=True, learn_from_failure=True)
     h2.answer(context="c", question="q")
     h2.collect_pending(correct=True)
@@ -479,13 +479,13 @@ def test_wrong_then_right_success_supersedes_failure(tmp_path):
 def test_right_then_wrong_failure_does_not_overwrite_success(tmp_path):
     bank = Bank(tmp_path / "m")
     succ = _mk_distiller(derived_from="success", eid="exp_q")
-    h1 = MemoryHarness(FakeSolver(), bank, FakeBackend(), distiller=succ,
+    h1 = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), distiller=succ,
                        defer_collect=True, learn_from_failure=True)
     h1.answer(context="c", question="q")
     h1.collect_pending(correct=True)
 
     fail = _mk_distiller(derived_from="failure", eid="exp_q")
-    h2 = MemoryHarness(FakeSolver(), bank, FakeBackend(), distiller=fail,
+    h2 = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), distiller=fail,
                        defer_collect=True, learn_from_failure=True)
     h2.answer(context="c", question="q")
     h2.collect_pending(correct=False)
@@ -498,7 +498,7 @@ def test_failure_then_failure_dedup(tmp_path):
     bank = Bank(tmp_path / "m")
     for _ in range(2):
         fail = _mk_distiller(derived_from="failure", eid="exp_q")
-        h = MemoryHarness(FakeSolver(), bank, FakeBackend(), distiller=fail,
+        h = MemoryHarness(FakeInferenceClient(), bank, FakeBackend(), distiller=fail,
                           defer_collect=True, learn_from_failure=True)
         h.answer(context="c", question="q")
         h.collect_pending(correct=False)
@@ -509,22 +509,22 @@ def test_failure_then_failure_dedup(tmp_path):
 
 
 def test_freeze_retrieval_defaults_false(tmp_path):
-    h = MemoryHarness(FakeSolver(), Bank(tmp_path / "m"), FakeBackend())
+    h = MemoryHarness(FakeInferenceClient(), Bank(tmp_path / "m"), FakeBackend())
     assert h.freeze_retrieval is False
 
 
 def test_freeze_retrieval_suppresses_injection(tmp_path):
-    # A matching bank entry that WOULD be injected must not reach the solver when
+    # A matching bank entry that WOULD be injected must not reach the inference client when
     # retrieval is frozen: the cold task is a true first-exposure baseline.
     bank = Bank(tmp_path / "mem")
     bank.append(_entry("a", [1.0, 0.0]))
-    solver = FakeSolver()
+    inference_client = FakeInferenceClient()
     harness = MemoryHarness(
-        solver, bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5,
+        inference_client, bank, FakeBackend({"Q": [1.0, 0.0]}), min_cosine=0.5,
         freeze_retrieval=True,
     )
     harness.answer(context="ctx", question="Q")
-    _, root_prompt = solver.calls[0]
+    _, root_prompt = inference_client.calls[0]
     assert root_prompt == "Q"  # no memory block injected
     assert bank.load()[0]["stats"]["use_count"] == 0  # not retrieved -> not bumped
 
@@ -533,7 +533,7 @@ def test_freeze_retrieval_still_writes_distilled_experience(tmp_path):
     # Memories are still written so the bank is populated for the warm run.
     bank = Bank(tmp_path / "mem")  # empty
     harness = MemoryHarness(
-        FakeSolver(), bank, FakeBackend(),
+        FakeInferenceClient(), bank, FakeBackend(),
         distiller=lambda q, c, r: _entry("learned", [0.5, 0.5]),
         freeze_retrieval=True,
     )
@@ -554,29 +554,29 @@ def _bank_with_polarities(tmp_path, n_pos, n_neg, emb):
 
 def test_injection_caps_negatives(tmp_path):
     bank = _bank_with_polarities(tmp_path, n_pos=2, n_neg=3, emb=[1.0, 0.0])
-    solver = FakeSolver()
-    h = MemoryHarness(solver, bank, FakeBackend({"Q": [1.0, 0.0]}),
+    inference_client = FakeInferenceClient()
+    h = MemoryHarness(inference_client, bank, FakeBackend({"Q": [1.0, 0.0]}),
                       min_cosine=0.5, k_max=10, max_inject_negatives=1)
     h.answer(context="c", question="Q")
-    _, root = solver.calls[0]
+    _, root = inference_client.calls[0]
     assert root.count('polarity="negative"') == 1
     assert root.count('polarity="positive"') == 2
 
 
 def test_all_negative_retrieval_capped(tmp_path):
     bank = _bank_with_polarities(tmp_path, n_pos=0, n_neg=4, emb=[1.0, 0.0])
-    solver = FakeSolver()
-    h = MemoryHarness(solver, bank, FakeBackend({"Q": [1.0, 0.0]}),
+    inference_client = FakeInferenceClient()
+    h = MemoryHarness(inference_client, bank, FakeBackend({"Q": [1.0, 0.0]}),
                       min_cosine=0.5, k_max=10, max_inject_negatives=2)
     h.answer(context="c", question="Q")
-    _, root = solver.calls[0]
+    _, root = inference_client.calls[0]
     assert root.count('polarity="negative"') == 2
 
 
 def test_bump_stats_only_for_injected(tmp_path):
     bank = _bank_with_polarities(tmp_path, n_pos=1, n_neg=3, emb=[1.0, 0.0])
-    solver = FakeSolver()
-    h = MemoryHarness(solver, bank, FakeBackend({"Q": [1.0, 0.0]}),
+    inference_client = FakeInferenceClient()
+    h = MemoryHarness(inference_client, bank, FakeBackend({"Q": [1.0, 0.0]}),
                       min_cosine=0.5, k_max=10, max_inject_negatives=1)
     h.answer(context="c", question="Q")
     counts = sorted(e["stats"]["use_count"] for e in bank.load())

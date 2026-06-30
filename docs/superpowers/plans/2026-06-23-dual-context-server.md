@@ -67,10 +67,10 @@
 
 ## Task 4: local-ai - single unit launching the dual server
 
-**Files (local-ai, branch `feat/dual-instance-weight-shared-solver`):**
+**Files (local-ai, branch `feat/dual-instance-weight-shared-inference`):**
 - Create: `scripts/localai-llama-dual-context.service`
 - Modify: `scripts/llama-server.sh` (replace `recon`/`start-pair`/`stop-pair`/`status-pair` with `start-dual`/`stop-dual`/`status-dual`; drop the LD_PRELOAD/MODEL_SIZE/IPC machinery)
-- Delete: `scripts/localai-llama-solver-orch.service`, `scripts/localai-llama-solver-worker.service` (the IPC two-process units)
+- Delete: `scripts/localai-llama-orch.service`, `scripts/localai-llama-worker.service` (the IPC two-process units)
 
 - [ ] **Step 1:** Write the unit: `ExecStart=.../llama-dual-context-server --model .../v13-sft.Q4_0.gguf --orch-ctx 98304 --orch-parallel 4 --worker-ctx 65536 --worker-parallel 4` plus shared knobs (flash-attn, q4_0 KV, swa-full, cache-reuse, cache-ram, jinja, temp 0); `LD_LIBRARY_PATH=/usr/local/cuda-13/lib64`; NO LD_PRELOAD; one log file.
 - [ ] **Step 2:** Rewrite the script commands: `start-dual` (assert orphans/ports/VRAM, start unit, wait for BOTH ports), `stop-dual`, `status-dual` (both ports + VRAM + one weights copy). Remove the IPC/recon helpers.
@@ -78,7 +78,7 @@
 
 ## Task 5: ADR-0014 superseding ADR-0013
 
-**Files (prehend):** Create `docs/decisions/0014-single-process-dual-context-solver.md`
+**Files (prehend):** Create `docs/decisions/0014-single-process-dual-context-inference.md`
 
 - [ ] **Step 1:** MADR format: context = ADR-0013's two-process CUDA-IPC weight-share is inoperable on WSL2 (`cudaIpcOpenMemHandle` -> 400; VMM-fd works but unneeded); decision = single-process multi-context (one `llama_model`, two `server_context`, private KV/prefix each) in a custom fork binary; consequences = one weights copy, no kv-unified contention, prefix reuse per role, custom binary tracks llama.cpp server internals; supersedes ADR-0013. Mark ADR-0013 status `superseded by 0014` in 0014's text only (do not edit 0013's body). NO em dashes.
 - [ ] **Step 2:** Commit (prehend).

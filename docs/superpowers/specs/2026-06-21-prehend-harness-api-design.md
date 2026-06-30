@@ -18,7 +18,7 @@ and assemble all of this itself.
 The two real clients prove the cost:
 
 - **rlm-trainer `benchmark.py`** hand-builds the ~20-arg `SRLM(...)` and a
-  bespoke `_maybe_wrap_memory(solver, params)` to wire ADR-0005 memory.
+  bespoke `_maybe_wrap_memory(inference_client, params)` to wire ADR-0005 memory.
 - **kb-librarian `ask.py`** builds an *even larger* `SRLM(...)` and additionally
   carries general llama-server reliability knobs (`max_retries=0`, `stream=True`,
   `repeat_guard_threshold`, `repair_doubled_calls`, `repair_unfilled_placeholders`,
@@ -105,7 +105,7 @@ h = Harness(
     # Tier A overrides (rare): a Defaults dataclass; omit to use vetted defaults.
     defaults=None,
 
-    # Optional memory (ADR-0005); when set, Harness wraps the solver internally.
+    # Optional memory (ADR-0005); when set, Harness wraps the inference_client internally.
     memory=None,                          # or MemoryConfig(bank_dir=..., embed_url=...,
                                           #     reflect_model=..., k_max=..., min_cosine=...)
 
@@ -157,12 +157,12 @@ to a lucky default.
 
 ### Memory composition
 
-When `memory=MemoryConfig(...)` is set, the Harness wraps the constructed solver
+When `memory=MemoryConfig(...)` is set, the Harness wraps the constructed inference_client
 via the existing `build_memory_harness_from_config(...)` -- the same wiring
 `_maybe_wrap_memory` does today, moved inside the Harness. `_maybe_wrap_memory`
 is deleted from benchmark. `MemoryHarness` keeps its name and ADR-0005 behavior
 but is demoted to an internal building block (no longer hand-wired by clients).
-The `MemoryHarness.completion` Solver adapter (commit fee96ae) is what makes this
+The `MemoryHarness.completion` InferenceClient adapter (commit fee96ae) is what makes this
 composition clean.
 
 ### Tier C: hooks
@@ -171,7 +171,7 @@ All optional. Each maps to the corresponding `SRLM` arg. The Harness holds the
 constructed `SRLM`, so the `observability` hook resolves the prior
 `observability.bind(srlm)` / `call_scope(srlm)` raw-SRLM caveat *inside* the
 Harness, where the raw SRLM is available -- the client passes a hook, not a raw
-solver.
+inference_client.
 
 ### Escape hatch
 
@@ -218,7 +218,7 @@ Harness.
   - hybrid runtime: clean probe -> detected slots/ctx; router-ambiguous ->
     fallback `slots=1` + notice; explicit `Runtime` -> no probe.
   - `memory=None` -> byte-identical to bare SRLM path; `memory=MemoryConfig(...)`
-    -> solver is wrapped (assert MemoryHarness in the chain).
+    -> inference_client is wrapped (assert MemoryHarness in the chain).
   - each Tier-C hook reaches the SRLM (system_addendum, verifiers, custom_tools,
     observability hook invoked with the SRLM).
 - **Regression (this plan):** benchmark's benchmark/memory tests stay green
@@ -226,7 +226,7 @@ Harness.
   gate, not this plan's.)
 - The Harness unit tests cover *all* Tier-C hooks even though only benchmark
   migrates now, so the fast-follow librarian migration has no unproven surface.
-- Follow the repo's existing test patterns (fake solver / no network), per the
+- Follow the repo's existing test patterns (fake inference_client / no network), per the
   memory-layer test suite.
 
 ## Risks & mitigations

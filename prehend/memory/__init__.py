@@ -1,7 +1,7 @@
 """prehend: self-evolving experience memory for prehend.
 
 A domain-agnostic port of FinAcumen's FM subsystem. Wraps a context-offloading
-solver (an :class:`~prehend.SRLM`) so it accumulates and reuses verified,
+inference client (an :class:`~prehend.SRLM`) so it accumulates and reuses verified,
 polarity-tagged experience across tasks: retrieve -> inject -> solve -> collect.
 
 Quick start::
@@ -25,7 +25,7 @@ from prehend.memory.factory import (
     build_memory_harness,
     build_memory_harness_from_config,
 )
-from prehend.memory.harness import Distiller, MemoryHarness, Solver
+from prehend.memory.harness import Distiller, InferenceClient, MemoryHarness
 from prehend.memory.inject import render_memory_block
 from prehend.memory.pruning_rules import is_anti_give_up
 from prehend.memory.reflect import OpenAIReflectFn
@@ -41,7 +41,7 @@ __all__ = [
     "cosine",
     "MemoryHarness",
     "Distiller",
-    "Solver",
+    "InferenceClient",
     "Tagger",
     "NullTagger",
     "TraceDistiller",

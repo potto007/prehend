@@ -35,7 +35,7 @@ question now receive DISTINCT ids and COEXIST in the bank; same-`(question, prov
 entries still dedupe (one recipe + one guard per question). Retrieval embeds the bare
 question, so a query surfaces BOTH the recipe and the guard (cosine ~1.0 to each), and
 the existing injection cap (`select_for_injection`, `max_inject_negatives=2`) balances
-how many negatives reach the solver.
+how many negatives reach the inference client.
 
 This SUPERSEDES ADR-0011's id-collision resolution rule (success-shadows-failure). The
 two cross-provenance branches in `_collect` (`superseded` / `superseded_skip`) are now

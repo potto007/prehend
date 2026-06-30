@@ -8,7 +8,7 @@ from prehend.memory.harness import MemoryHarness
 from prehend.memory.signature import context_signature
 
 
-class FakeSolver:
+class FakeInferenceClient:
     def __init__(self, answer="42"):
         self.answer = answer
         self.calls: list[tuple] = []
@@ -63,7 +63,7 @@ def _harness(tmp_path, *, gate: bool):
     backend = FakeBackend({"Q": [1.0, 0.0]})
     bank = Bank(tmp_path / "mem")
     return MemoryHarness(
-        FakeSolver(), bank, backend, min_cosine=0.5,
+        FakeInferenceClient(), bank, backend, min_cosine=0.5,
         distiller=_distiller(backend), context_signature=gate,
     ), bank
 
@@ -78,10 +78,10 @@ def test_gate_blocks_same_question_different_document(tmp_path):
 
     # Solving the SAME question over a DIFFERENT document must NOT inject A's
     # experience: same bare-question embedding, but the ctx_sig conflicts.
-    solver = FakeSolver()
-    harness.solver = solver
+    inference_client = FakeInferenceClient()
+    harness.inference_client = inference_client
     harness.answer(context="DOCUMENT B", question="Q")
-    _, root_prompt = solver.calls[0]
+    _, root_prompt = inference_client.calls[0]
     assert root_prompt == "Q"
     assert "<Memory_Block>" not in root_prompt
 
@@ -89,11 +89,11 @@ def test_gate_blocks_same_question_different_document(tmp_path):
 def test_gate_allows_same_document(tmp_path):
     harness, _ = _harness(tmp_path, gate=True)
     harness.answer(context="DOCUMENT A", question="Q")
-    solver = FakeSolver()
-    harness.solver = solver
+    inference_client = FakeInferenceClient()
+    harness.inference_client = inference_client
     # Same question, same document -> ctx_sig matches -> injects.
     harness.answer(context="DOCUMENT A", question="Q")
-    _, root_prompt = solver.calls[0]
+    _, root_prompt = inference_client.calls[0]
     assert "<Memory_Block>" in root_prompt
 
 
@@ -103,8 +103,8 @@ def test_gate_off_injects_across_documents(tmp_path):
     harness, bank = _harness(tmp_path, gate=False)
     harness.answer(context="DOCUMENT A", question="Q")
     assert "tags" not in bank.load()[0]
-    solver = FakeSolver()
-    harness.solver = solver
+    inference_client = FakeInferenceClient()
+    harness.inference_client = inference_client
     harness.answer(context="DOCUMENT B", question="Q")
-    _, root_prompt = solver.calls[0]
+    _, root_prompt = inference_client.calls[0]
     assert "<Memory_Block>" in root_prompt

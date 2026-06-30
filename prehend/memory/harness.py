@@ -1,4 +1,4 @@
-"""prehend MemoryHarness: wrap a solver with self-evolving experience memory.
+"""prehend MemoryHarness: wrap an inference client with self-evolving experience memory.
 
 This is the integration seam. It mirrors FinAcumen's ``MemoryAgentVariant``
 (retrieve -> delegate solve -> collect) but delegates to anything exposing the
@@ -31,7 +31,7 @@ from prehend.memory.retrieve import (
 )
 from prehend.memory.tagger import NullTagger, Tagger
 
-# (question, context, solver_result) -> a new entry dict, or None to write nothing.
+# (question, context, inference_client_result) -> a new entry dict, or None to write nothing.
 # The real TraceDistiller also accepts a keyword-only ``failed`` flag; the harness
 # passes it only on the failure path so plain 3-arg distillers stay compatible.
 Distiller = Callable[..., dict | None]
@@ -55,7 +55,7 @@ def select_for_injection(entries: list[dict], *, max_negatives: int) -> list[dic
     return selected
 
 
-class Solver(Protocol):
+class InferenceClient(Protocol):
     def completion(self, prompt: str, root_prompt: str | None = None) -> Any:
         ...
 
@@ -90,11 +90,11 @@ class NullObserver:
 
 
 class MemoryHarness:
-    """Adds retrieve/inject/collect around a context-offloading solver."""
+    """Adds retrieve/inject/collect around a context-offloading inference client."""
 
     def __init__(
         self,
-        solver: Solver,
+        inference_client: InferenceClient,
         bank: Bank,
         backend: EmbeddingBackend,
         *,
@@ -109,7 +109,7 @@ class MemoryHarness:
         freeze_retrieval: bool = False,
         observer: MemoryObserver | None = None,
     ) -> None:
-        self.solver = solver
+        self.inference_client = inference_client
         self.bank = bank
         self.backend = backend
         self.k_max = k_max
@@ -140,18 +140,18 @@ class MemoryHarness:
         # When True, answer() solves but does NOT distill; the caller invokes
         # collect_pending(correct) once it knows the outcome, so a wrong solve
         # never poisons the bank (the dominant no-upside cause on the v13
-        # plain-multihop eval). Default off keeps the drop-in Solver contract:
+        # plain-multihop eval). Default off keeps the drop-in InferenceClient contract:
         # a bare completion() call still learns immediately.
         self.defer_collect = defer_collect
         self._pending: tuple[str, str, Any, dict] | None = None
 
     def completion(self, prompt: str, root_prompt: str | None = None) -> Any:
-        """Transparent :class:`Solver` adapter over :meth:`answer`.
+        """Transparent :class:`InferenceClient` adapter over :meth:`answer`.
 
-        Lets a memory-wrapped solver drop into any call site that drives a bare
-        ``Solver`` via ``completion(context, question)``. ``prompt`` is the
+        Lets a memory-wrapped inference client drop into any call site that drives a bare
+        ``InferenceClient`` via ``completion(context, question)``. ``prompt`` is the
         offloaded context; ``root_prompt`` is the question (defaulting to
-        ``prompt`` when omitted, matching the bare-solver convention).
+        ``prompt`` when omitted, matching the bare-inference-client convention).
         """
         return self.answer(prompt, root_prompt if root_prompt is not None else prompt)
 
@@ -205,7 +205,7 @@ class MemoryHarness:
             error=error,
         )
 
-        result = self.solver.completion(context, root_prompt)
+        result = self.inference_client.completion(context, root_prompt)
 
         if self.defer_collect:
             self._pending = (question, context, result, query_tags)

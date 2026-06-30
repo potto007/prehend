@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SGLang Serving Recommendations — RLM Solver on RTX 5090</title>
+<title>SGLang Serving Recommendations — RLM Inference on RTX 5090</title>
 <style>
   :root {
     --accent: #0f6e6e;
@@ -243,7 +243,7 @@
 <main class="page">
 
   <header>
-    <h1>SGLang Serving Recommendations — RLM Solver on RTX 5090</h1>
+    <h1>SGLang Serving Recommendations — RLM Inference on RTX 5090</h1>
     <p class="subtitle">Model: gemma-4-12B (Gnosis-MedPolicy-13, v13) — single RTX 5090 / SM_120 / WSL2</p>
     <p class="meta">Date: 2026-06-24 &nbsp;·&nbsp; Engineering advisory</p>
     <p class="status-note">Status: advisory — ADR-0016 remains PROPOSED, not accepted. Do not flip serving defaults until the GATE&nbsp;#2 accuracy A/B clears.</p>
@@ -251,7 +251,7 @@
 
   <h2>Executive Summary</h2>
   <p class="lead">
-    Three serving decisions are on the table for the RLM solver, and the verdicts diverge sharply.
+    Three serving decisions are on the table for the RLM inference server, and the verdicts diverge sharply.
     <strong>KV-cache quantization</strong> stays on <code>fp8_e4m3</code> in production but is only an <em>amber</em> keep: its effect on long-context retrieval accuracy is unvalidated and is a prime suspect in the GATE&nbsp;#2 accuracy gap, so it must be A/B'd against bf16 KV.
     <strong>Speculative decoding (DFlash)</strong> is a flat <em>NO-GO</em>: it structurally zeroes out our dominant latency lever (RadixAttention prefix reuse) and targets a low-batch decode regime we never enter.
     <strong>Config tuning</strong> is the <em>green</em>, actionable win: size everything around one invariant so the orchestrator prefix is never evicted.
@@ -288,7 +288,7 @@
 
   <h3>Use-case context</h3>
   <p>
-    The RLM pattern: a solver/orchestrator writes programs in a REPL that slice, search, and recursively query a large offloaded context (a ~314k-char multihop needle-in-haystack), driving co-batched map-reduce sub-calls. The workload is <strong>prefill-heavy</strong> and <strong>prefix-cache-heavy</strong> — a long shared system-prompt prefix plus the same context chunks reused across hops, so RadixAttention prefix reuse is the dominant latency lever. Hardware is one RTX 5090 (32&nbsp;GB, Blackwell consumer SM_120) under WSL2. The model is gemma-4-12B (<code>gemma4_unified</code>, text-only), served on <code>:8080</code>.
+    The RLM pattern: an inference engine/orchestrator writes programs in a REPL that slice, search, and recursively query a large offloaded context (a ~314k-char multihop needle-in-haystack), driving co-batched map-reduce sub-calls. The workload is <strong>prefill-heavy</strong> and <strong>prefix-cache-heavy</strong> — a long shared system-prompt prefix plus the same context chunks reused across hops, so RadixAttention prefix reuse is the dominant latency lever. Hardware is one RTX 5090 (32&nbsp;GB, Blackwell consumer SM_120) under WSL2. The model is gemma-4-12B (<code>gemma4_unified</code>, text-only), served on <code>:8080</code>.
   </p>
   <p>Current baseline config:</p>
   <pre><code><span class="cfg-label">--quantization</span> compressed-tensors      <span class="cfg-label"># W4A16-g32-CT</span>
@@ -507,7 +507,7 @@ recommended_chunk_chars     ~ 30% of per-call budget  <span class="cfg-label"># 
   <footer>
     <h2>References</h2>
     <p>
-      <strong>ADRs:</strong> 0010 (auto-chunk map-reduce), 0012 (pool-aware subcall budget under <code>kv-unified</code>), 0015 (inference-engine eval vLLM/SGLang), 0016 (SGLang as served solver), 0017 (data-first sub-call layout), 0018 (extraction-map for multihop chaining).
+      <strong>ADRs:</strong> 0010 (auto-chunk map-reduce), 0012 (pool-aware subcall budget under <code>kv-unified</code>), 0015 (inference-engine eval vLLM/SGLang), 0016 (SGLang as served inference), 0017 (data-first sub-call layout), 0018 (extraction-map for multihop chaining).
     </p>
     <p>
       <strong>Memory notes:</strong> <code>project_sglang-v13-serving-gate1</code>, <code>project_int4-quant-v13-w4a16</code>, <code>project_sglang-radixattention-pool-tuning</code>, <code>project_data-first-subcall-layout</code>, <code>project_turboquant-iceboxed</code>, <code>project_orchestrator-transcript-overflow-followup</code>.
@@ -515,7 +515,7 @@ recommended_chunk_chars     ~ 30% of per-call budget  <span class="cfg-label"># 
     <p>
       <strong>GitHub issues cited:</strong> #40624, #33524, #14814, #9233.
     </p>
-    <p class="kicker">Advisory document — ADR-0016 remains PROPOSED. Generated 2026-06-24 for the RLM solver on RTX 5090 / SM_120 / WSL2.</p>
+    <p class="kicker">Advisory document — ADR-0016 remains PROPOSED. Generated 2026-06-24 for the RLM inference server on RTX 5090 / SM_120 / WSL2.</p>
   </footer>
 
 </main>

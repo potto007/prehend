@@ -1,22 +1,22 @@
 ---
-status: "superseded by 0021-vllm-as-served-solver"
+status: "superseded by 0021-vllm-as-served-inference"
 date: "2026-06-24"
 deciders: "potto"
 consulted: "research agents (vLLM, SGLang); observability agent"
 ---
 
-> **Superseded (2026-06-26) by [ADR-0021](0021-vllm-as-served-solver.md).** The
+> **Superseded (2026-06-26) by [ADR-0021](0021-vllm-as-served-inference.md).** The
 > SGLang serving path reached a working gate-1 but was never accepted; ADR-0015's
-> lean flipped to vLLM-first and vLLM 0.23.0 was validated as the served solver.
+> lean flipped to vLLM-first and vLLM 0.23.0 was validated as the served inference.
 > SGLang infra is retained for rollback only.
 
-# SGLang as the served solver: retire the dual-context llama.cpp fork
+# SGLang as the served inference: retire the dual-context llama.cpp fork
 
 ## Context and Problem Statement
 
 [ADR-0015](0015-inference-engine-evaluation-vllm-sglang.md) evaluated vLLM and
 SGLang as single-engine replacements for the `llama-dual-context-server`
-([ADR-0014](0014-single-process-dual-context-solver.md)), whose two
+([ADR-0014](0014-single-process-dual-context-inference.md)), whose two
 `llama_context`s run separate schedulers and **cannot co-batch** - costing ~37%
 aggregate decode throughput under the concurrent orchestrator+worker load the RLM
 pattern inherently produces, and timing out plain-multihop tasks. ADR-0015
@@ -32,19 +32,19 @@ the intended end state pending the GATE #2 accuracy A/B (see that section).
 
 ## Decision
 
-**Adopt SGLang as the served solver.** One SGLang engine on `:8080` serves BOTH
+**Adopt SGLang as the served inference.** One SGLang engine on `:8080` serves BOTH
 the orchestrator and worker roles via continuous batching + RadixAttention,
 co-batching what the two `llama_context`s could not. The roles differ only by
 per-request params, not separate processes/ports. This **supersedes
-[ADR-0013](0013-dual-instance-weight-shared-solver.md) and
-[ADR-0014](0014-single-process-dual-context-solver.md)** (the two-process and
+[ADR-0013](0013-dual-instance-weight-shared-inference.md) and
+[ADR-0014](0014-single-process-dual-context-inference.md)** (the two-process and
 dual-context designs) and makes the [ADR-0012](0012-pool-aware-subcall-budget-under-kv-unified.md)
 `--kv-unified` per-slot budget division unnecessary on this engine.
 
 Spike outcome - GATE #1 clean PASS, GATE #2 partial (infra/latency yes,
 accuracy A/B pending):
 
-- **GATE #1 (does it decode on SM_120?): PASS.** The v13 solver decodes correctly
+- **GATE #1 (does it decode on SM_120?): PASS.** The v13 model decodes correctly
   on the 5090/WSL2. Every blocker hit was config/version-skew, never a Blackwell
   kernel failure: cuda-graph capture and the triton attention kernels ran clean.
 - **GATE #2 (do the timed-out multihop tasks complete + co-batch?): PARTIAL.**
@@ -65,10 +65,10 @@ accuracy A/B pending):
   precision on long-context retrieval (vs llama's q8_0 KV - untested), or (c)
   chat-template / thinking-mode under sglang's auto `reasoning_parser=gemma4`.
 
-### What it takes to serve the v13 solver under SGLang (load-bearing specifics)
+### What it takes to serve the v13 model under SGLang (load-bearing specifics)
 
 The v13 checkpoint is a Google **`gemma4_unified`** (text+vision+audio) merge from
-`transformers 5.10.0.dev0`, but only used as a TEXT solver. Serving it required:
+`transformers 5.10.0.dev0`, but only used for text inference. Serving it required:
 
 1. **Env** (isolated `~/src/local-ai/.venv-sglang`, py3.12): released
    `sglang==0.5.13.post1` (already ships `gemma4_unified`/`gemma4_causal` - the
@@ -108,10 +108,10 @@ The v13 checkpoint is a Google **`gemma4_unified`** (text+vision+audio) merge fr
 ### Infra & observability
 
 `scripts/sglang-server.sh {start|stop|status|smoke}` + systemd unit
-`localai-sglang-solver.service` (fp8, triton, `--enable-metrics`, `:8080`),
+`localai-sglang.service` (fp8, triton, `--enable-metrics`, `:8080`),
 mirroring the llama-server conventions. SGLang `/metrics` is scraped by Prometheus
-(`sglang-solver` job), logs ship to Loki via promtail, and a Grafana dashboard
-(`sglang-solver`) covers throughput / TTFT / ITL / KV usage / cache-hit / GPU.
+(`sglang-inference` job), logs ship to Loki via promtail, and a Grafana dashboard
+(`sglang-inference`) covers throughput / TTFT / ITL / KV usage / cache-hit / GPU.
 
 ## Consequences
 

@@ -9,7 +9,7 @@ consulted: "debugging session (KV-dtype validation: SGLang scale path + gemma4 n
 
 ## Context and Problem Statement
 
-The served solver ([ADR-0016](0016-sglang-as-served-solver.md)) runs SGLang with
+The served inference ([ADR-0016](0016-sglang-as-served-inference.md)) runs SGLang with
 `--kv-cache-dtype fp8_e4m3`. fp8 KV is mandatory for capacity, not chosen for
 accuracy (bf16 weights leave `max_total_num_tokens=194`, a KV-starved hang; fp8
 weights + fp8 KV -> ~98k-token pool). INT4 KV was considered as a further

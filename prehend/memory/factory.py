@@ -1,8 +1,8 @@
-"""Wire a context-offloading solver into a memory-backed MemoryHarness.
+"""Wire a context-offloading inference client into a memory-backed MemoryHarness.
 
 ``build_memory_harness`` assembles the prehend loop end-to-end: a Bank, an
-embedding backend, a reflect function, and a TraceDistiller around any solver
-exposing ``completion(prompt, root_prompt)`` (in practice an SRLM). Components
+embedding backend, a reflect function, and a TraceDistiller around any inference
+client exposing ``completion(prompt, root_prompt)`` (in practice an SRLM). Components
 may be injected directly (for tests) or built from connection config.
 """
 from __future__ import annotations
@@ -16,9 +16,9 @@ from prehend.memory.embed import EmbeddingBackend
 from prehend.memory.embed_openai import OpenAIEmbeddingBackend
 from prehend.memory.harness import (
     Distiller,
+    InferenceClient,
     MemoryHarness,
     MemoryObserver,
-    Solver,
 )
 from prehend.memory.reflect import OpenAIReflectFn
 from prehend.memory.retrieve import DEFAULT_K_MAX, DEFAULT_MIN_COSINE
@@ -26,7 +26,7 @@ from prehend.memory.tagger import Tagger
 
 
 def build_memory_harness(
-    solver: Solver,
+    inference_client: InferenceClient,
     bank_dir: Path | str,
     *,
     embed_backend: EmbeddingBackend | None = None,
@@ -76,7 +76,7 @@ def build_memory_harness(
 
     distiller = TraceDistiller(reflect, backend, source=source)
     return MemoryHarness(
-        solver, Bank(bank_dir), backend,
+        inference_client, Bank(bank_dir), backend,
         k_max=k_max, min_cosine=min_cosine, distiller=distiller, tagger=tagger,
         defer_collect=defer_collect, learn_from_failure=learn_from_failure,
         max_inject_negatives=max_inject_negatives,
@@ -86,7 +86,7 @@ def build_memory_harness(
 
 
 def build_memory_harness_from_config(
-    solver: Solver,
+    inference_client: InferenceClient,
     bank_dir: Path | str,
     *,
     base_url: str,
@@ -115,10 +115,10 @@ def build_memory_harness_from_config(
 
     Reflect (trace distillation) runs against ``reflect_base_url`` when given,
     else ``base_url``; embedding against ``embed_base_url`` else ``base_url``.
-    Both can be split off the solver endpoint - the common local setup where a
+    Both can be split off the inference server endpoint - the common local setup where a
     small embedding model (e.g. bge-m3 on :8084) and a small/neutral distill
-    model (e.g. Gemma 4 e4b on :8082) run on their own ports while the solver
-    model is swapped on the single-model router (:8080), which must not swap.
+    model (e.g. Gemma 4 e4b on :8082) run on their own ports while the Gnosis model
+    is swapped on the single-model router (:8080), which must not swap.
 
     Distillation is mechanical JSON extraction, not reasoning, so by default
     reflect runs with thinking OFF and a bounded ``reflect_max_tokens``. Without
@@ -140,7 +140,7 @@ def build_memory_harness_from_config(
         max_tokens=reflect_max_tokens,
     )
     return build_memory_harness(
-        solver, bank_dir,
+        inference_client, bank_dir,
         embed_backend=backend, reflect_fn=reflect,
         source=source, k_max=k_max, min_cosine=min_cosine, tagger=tagger,
         defer_collect=defer_collect, learn_from_failure=learn_from_failure,

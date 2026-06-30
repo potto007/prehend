@@ -1,4 +1,4 @@
-# Dual-instance weight-shared solver
+# Dual-instance weight-shared inference
 
 Date: 2026-06-23
 Status: design (pending implementation plan)
@@ -6,7 +6,7 @@ Repos touched: `prehend` (Harness API), `local-ai` (serving/ops), `cuda-llm-weig
 
 ## Problem
 
-The solver runs as a single llama-server with `ctx-size 98304 / parallel 4` under
+The Gnosis model runs as a single llama-server with `ctx-size 98304 / parallel 4` under
 `--kv-unified`, so `n_ctx` is **one KV pool shared across all 4 slots**. A single
 task's concurrent map-reduce sub-calls plus the orchestrator's own iterative
 context and the ~20K-tok REDUCE all draw from that one pool. This is the
@@ -83,7 +83,7 @@ Three config consequences:
 
 1. **`sleep-idle-seconds` OFF on the pair.** Idle-unload frees the master's
    weights -> dangles the worker's IPC mapping -> crash. Use no idle-unload
-   (recommended; the pair is the always-on live solver) or
+   (recommended; the pair is the always-on live inference server) or
    `CUDA_VRAM_IPC_SUPPRESS_MASTER_FREE=1`. Deliberate reversal of the current
    1800s setting for these two units only.
 2. **Startup ordering:** master must publish its MASTER role before the worker
